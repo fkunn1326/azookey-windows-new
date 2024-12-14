@@ -1,0 +1,19 @@
+<Configuration>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>D:\azookey-windows\target\release</HostFolder>
+      <SandboxFolder>C:\Users\WDAGUtilityAccount\Desktop\ime_mirror</SandboxFolder>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>D:\azookey-windows\log</HostFolder>
+      <SandboxFolder>C:\Users\WDAGUtilityAccount\Desktop\log</SandboxFolder>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>D:\azookey-windows\scripts</HostFolder>
+      <SandboxFolder>C:\Users\WDAGUtilityAccount\Desktop\wsb</SandboxFolder>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>C:\Users\WDAGUtilityAccount\Desktop\wsb\script.bat</Command>
+  </LogonCommand>
+</Configuration>

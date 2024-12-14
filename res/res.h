@@ -1,0 +1,3 @@
+#define IDI_ICON 101
+#define IDI_MODE_KANA 102
+#define IDI_MODE_LATN 103
