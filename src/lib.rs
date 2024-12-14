@@ -2,20 +2,21 @@ mod extension;
 mod globals;
 mod macros;
 mod register;
+mod tsf;
 mod utils;
 
 use std::{ffi::c_void, sync::Mutex};
 
-use globals::{DllModule, DLL_INSTANCE};
+use globals::{DllModule, DLL_INSTANCE, GUID_TEXT_SERVICE};
 use register::{CLSIDMgr, CategoryMgr, ProfileMgr};
+use tsf::factory::TextServiceFactory;
 use windows::{
-    core::HRESULT,
+    core::{IUnknown, Interface as _, GUID, HRESULT},
     Win32::{
-        Foundation::{HMODULE, S_FALSE, S_OK},
-        System::{Ole::SELFREG_E_CLASS, SystemServices::DLL_PROCESS_ATTACH},
+        Foundation::{CLASS_E_CLASSNOTAVAILABLE, E_UNEXPECTED, HMODULE, S_FALSE},
+        System::{Com::IClassFactory, Ole::SELFREG_E_CLASS, SystemServices::DLL_PROCESS_ATTACH},
     },
 };
-
 // -- Dll Export Functions --
 // The IME DLL needs to implement the following four functions to operate as a COM server.
 
@@ -46,9 +47,45 @@ pub extern "system" fn DllMain(
 }
 
 #[no_mangle]
-pub extern "system" fn DllGetClassObject() -> HRESULT {
+/// # Safety
+/// This function uses raw pointers
+pub unsafe extern "system" fn DllGetClassObject(
+    rclsid: *const GUID,
+    riid: *const GUID,
+    ppv: *mut *mut c_void,
+) -> HRESULT {
     // Return a class factory to obtain the tsf TextService
-    S_OK
+    // This function will be called only once when applications request the TextService
+    // So, You have to reopen the application to apply the changes in the TextService
+    // https://zenn.dev/link/comments/d918e46723da80
+    log::info!("DllGetClassObject");
+
+    let result: anyhow::Result<()> = (|| {
+        let rclsid = unsafe { *rclsid };
+        let riid = unsafe { *riid };
+        let ppv = unsafe { &mut *ppv };
+
+        if rclsid != GUID_TEXT_SERVICE {
+            return Err(anyhow::anyhow!(CLASS_E_CLASSNOTAVAILABLE));
+        }
+
+        if riid != IClassFactory::IID {
+            return Err(anyhow::anyhow!(E_UNEXPECTED));
+        }
+
+        *ppv = match riid {
+            IUnknown::IID => std::mem::transmute::<IUnknown, *mut c_void>(IUnknown::from(
+                TextServiceFactory::default(),
+            )),
+            IClassFactory::IID => std::mem::transmute::<IClassFactory, *mut c_void>(
+                IClassFactory::from(TextServiceFactory::default()),
+            ),
+            _ => return Err(anyhow::anyhow!(E_UNEXPECTED)),
+        };
+        Ok(())
+    })();
+
+    check_err!(result)
 }
 
 #[no_mangle]
