@@ -8,7 +8,9 @@ use windows::{
     Win32::{
         Foundation::{BOOL, E_NOINTERFACE},
         System::Com::{IClassFactory, IClassFactory_Impl},
-        UI::TextServices::{ITfTextInputProcessor, ITfTextInputProcessorEx},
+        UI::TextServices::{
+            ITfKeyEventSink, ITfTextInputProcessor, ITfTextInputProcessorEx, ITfThreadMgrEventSink,
+        },
     },
 };
 
@@ -17,7 +19,13 @@ use crate::{globals::DllModule, handle_result};
 use super::text_service::TextService;
 
 #[derive(Default)]
-#[implement(IClassFactory, ITfTextInputProcessor, ITfTextInputProcessorEx)]
+#[implement(
+    IClassFactory,
+    ITfTextInputProcessor,
+    ITfTextInputProcessorEx,
+    ITfKeyEventSink,
+    ITfThreadMgrEventSink
+)]
 pub struct TextServiceFactory {
     text_service: RefCell<TextService>,
 }
@@ -79,9 +87,9 @@ impl TextServiceFactory {
             text_service: RefCell::new(TextService::default()),
         };
 
-        let interface = ITfTextInputProcessor::from(factory);
-        let factory = unsafe { interface.as_impl() };
-        factory.borrow_mut().this = Some(interface.clone());
+        let this = ITfTextInputProcessor::from(factory);
+        let factory = unsafe { this.as_impl() };
+        factory.borrow_mut().this = Some(this.clone());
 
         unsafe { factory.cast::<I>() }
     }

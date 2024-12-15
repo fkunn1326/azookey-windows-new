@@ -41,7 +41,7 @@ pub extern "system" fn DllMain(
         Ok(())
     })();
 
-    log::info!("DllMain");
+    log::debug!("DllMain");
 
     check_err!(result, true, false)
 }
@@ -58,7 +58,7 @@ pub unsafe extern "system" fn DllGetClassObject(
     // This function will be called only once when applications request the TextService
     // So, You have to reopen the application to apply the changes in the TextService
     // https://zenn.dev/link/comments/d918e46723da80
-    log::info!("DllGetClassObject");
+    log::debug!("DllGetClassObject");
 
     let result: anyhow::Result<()> = (|| {
         let rclsid = unsafe { *rclsid };
@@ -92,7 +92,7 @@ pub unsafe extern "system" fn DllGetClassObject(
 pub extern "system" fn DllRegisterServer() -> HRESULT {
     // Register the CLSID of the TextService
     // Called when the DLL is registered using regsvr32
-    log::info!("DllRegisterServer");
+    log::debug!("DllRegisterServer");
 
     let result: anyhow::Result<()> = (|| {
         let dll_path = DllModule::get_path()?;
@@ -112,7 +112,7 @@ pub extern "system" fn DllRegisterServer() -> HRESULT {
 pub extern "system" fn DllUnregisterServer() -> HRESULT {
     // Unregister the CLSID of the TextService
     // Called when the DLL is unregistered using regsvr32
-    log::info!("DllUnregisterServer");
+    log::debug!("DllUnregisterServer");
 
     let result: anyhow::Result<()> = (|| {
         ProfileMgr::unregister()?;
