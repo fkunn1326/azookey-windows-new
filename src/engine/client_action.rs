@@ -1,3 +1,5 @@
+use super::input_mode::InputMode;
+
 #[derive(Debug, PartialEq)]
 pub enum ClientAction {
     StartComposition,
@@ -7,4 +9,6 @@ pub enum ClientAction {
     RemoveText,
 
     MoveCursor(i32),
+
+    SetIMEMode(InputMode),
 }

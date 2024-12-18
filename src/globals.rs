@@ -22,7 +22,7 @@ pub const GUID_TEXT_SERVICE: GUID = GUID::from_u128(0xffdefe79_2fc2_11ef_b16b_94
 // ffdefe7a-2fc2-11ef-b16b-94e70b2c378c
 pub const GUID_PROFILE: GUID = GUID::from_u128(0xffdefe7a_2fc2_11ef_b16b_94e70b2c378c);
 
-// DisplayAttribute用のGUID3つ
+// DisplayAttribute用のGUID
 pub const GUID_DISPLAY_ATTRIBUTE: GUID = GUID::from_u128(0xffdefe7b_2fc2_11ef_b16b_94e70b2c378c);
 
 pub const DISPLAY_ATTRIBUTE: TF_DISPLAYATTRIBUTE = TF_DISPLAYATTRIBUTE {
@@ -43,9 +43,8 @@ pub const DISPLAY_ATTRIBUTE: TF_DISPLAYATTRIBUTE = TF_DISPLAYATTRIBUTE {
     bAttr: TF_ATTR_TARGET_CONVERTED,
 };
 
-// これはなんだろう..?
-// https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/Win7Samples/winui/input/tsf/textservice/textservice-step04/LanguageBar.cpp#L23
-pub const TEXTSERVICE_LANGBARITEMSINK_COOKIE: u32 = 0x0fab0fab;
+// You can use any value for this cookie.
+pub const TEXTSERVICE_LANGBARITEMSINK_COOKIE: u32 = 0;
 
 pub static DLL_INSTANCE: OnceLock<Mutex<DllModule>> = OnceLock::new();
 

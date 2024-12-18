@@ -13,6 +13,7 @@ pub enum UserAction {
     Navigation(Navigation),
     Function(Function),
     Number(i8),
+    ToggleInputMode,
 }
 
 #[derive(Debug)]
@@ -62,6 +63,8 @@ impl From<usize> for UserAction {
             0x75 => UserAction::Function(Function::Six), // VK_F6
             0x76 => UserAction::Function(Function::Seven), // VK_F7
             0x77 => UserAction::Function(Function::Eight), // VK_F8
+
+            0xF3 | 0xF4 => UserAction::ToggleInputMode, // Zenkaku/Hankaku
 
             _ => {
                 let key_state = {

@@ -9,9 +9,9 @@ use windows::{
         Foundation::{BOOL, E_FAIL},
         System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
         UI::TextServices::{
-            CLSID_TF_CategoryMgr, ITfCategoryMgr, ITfKeyEventSink, ITfKeystrokeMgr, ITfSource,
-            ITfTextInputProcessorEx_Impl, ITfTextInputProcessor_Impl, ITfThreadMgr,
-            ITfThreadMgrEventSink,
+            CLSID_TF_CategoryMgr, ITfCategoryMgr, ITfKeyEventSink, ITfKeystrokeMgr,
+            ITfLangBarItemButton, ITfLangBarItemMgr, ITfSource, ITfTextInputProcessorEx_Impl,
+            ITfTextInputProcessor_Impl, ITfThreadMgr, ITfThreadMgrEventSink,
         },
     },
 };
@@ -47,6 +47,7 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
         };
 
         // initialize display attribute
+        log::debug!("Initialize display attribute");
         let atom_map = unsafe {
             let mut map = HashMap::new();
             let category_mgr: ITfCategoryMgr =
@@ -58,6 +59,14 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
         };
 
         text_service.display_attribute_atom = atom_map;
+
+        // initialize langbar
+        log::debug!("Initialize langbar");
+        unsafe {
+            thread_mgr
+                .cast::<ITfLangBarItemMgr>()?
+                .AddItem(&text_service.this::<ITfLangBarItemButton>()?)?;
+        };
 
         log::debug!("AdviseKeyEventSink success");
 
@@ -85,6 +94,13 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
                     .cast::<ITfKeystrokeMgr>()?
                     .UnadviseKeyEventSink(text_service.tid)?;
             };
+
+            log::debug!("Remove langbar");
+            unsafe {
+                thread_mgr
+                    .cast::<ITfLangBarItemMgr>()?
+                    .RemoveItem(&text_service.this::<ITfLangBarItemButton>()?)
+            }?;
         }
 
         let mut text_service = self.borrow_mut()?;

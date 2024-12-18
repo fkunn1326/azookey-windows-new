@@ -11,7 +11,7 @@ use windows::{
     },
 };
 
-use crate::engine::composition::Composition;
+use crate::engine::{composition::Composition, input_mode::InputMode};
 
 #[derive(Default, Debug)]
 pub struct TextService {
@@ -21,6 +21,7 @@ pub struct TextService {
     pub context: Option<ITfContext>,
     pub composition: RefCell<Composition>,
     pub display_attribute_atom: HashMap<GUID, u32>,
+    pub mode: InputMode,
     pub this: Option<ITfTextInputProcessor>,
 }
 

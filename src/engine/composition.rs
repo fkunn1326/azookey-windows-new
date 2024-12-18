@@ -1,16 +1,21 @@
 use crate::{
-    engine::user_action::UserAction, extension::VKeyExt as _, tsf::factory::{TextServiceFactory, TextServiceFactory_Impl}
+    engine::user_action::UserAction,
+    extension::VKeyExt as _,
+    tsf::factory::{TextServiceFactory, TextServiceFactory_Impl},
 };
 
 use windows::{
     core::Result,
     Win32::{
         Foundation::WPARAM,
-        UI::{Input::KeyboardAndMouse::VK_CONTROL, TextServices::{ITfComposition, ITfCompositionSink_Impl, ITfContext}}
-    }
+        UI::{
+            Input::KeyboardAndMouse::VK_CONTROL,
+            TextServices::{ITfComposition, ITfCompositionSink_Impl, ITfContext},
+        },
+    },
 };
 
-use super::{client_action::ClientAction, user_action::Navigation};
+use super::{client_action::ClientAction, input_mode::InputMode, user_action::Navigation};
 
 #[derive(Default, Clone, PartialEq, Debug)]
 pub enum CompositionState {
@@ -59,16 +64,17 @@ impl TextServiceFactory {
         }
 
         #[allow(clippy::let_and_return)]
-        let composition = {
+        let (composition, mode) = {
             let text_service = self.borrow()?;
             let composition = text_service.borrow_composition()?.clone();
-            composition
+            let mode = text_service.mode.clone();
+            (composition, mode)
         };
         let action = UserAction::from(wparam.0);
 
         let (transition, actions) = match composition.state {
             CompositionState::None => match action {
-                UserAction::Input(char) => (
+                UserAction::Input(char) if mode == InputMode::Kana => (
                     CompositionState::Composing,
                     vec![
                         ClientAction::StartComposition,
@@ -81,6 +87,10 @@ impl TextServiceFactory {
                         ClientAction::StartComposition,
                         ClientAction::AppendText(number.to_string()),
                     ],
+                ),
+                UserAction::ToggleInputMode => (
+                    CompositionState::None,
+                    vec![ClientAction::SetIMEMode(InputMode::Kana)],
                 ),
                 _ => {
                     return Ok(false);
@@ -121,6 +131,10 @@ impl TextServiceFactory {
                     ),
                     _ => (CompositionState::Composing, vec![]),
                 },
+                UserAction::ToggleInputMode => (
+                    CompositionState::None,
+                    vec![ClientAction::SetIMEMode(InputMode::Latin)],
+                ),
                 _ => {
                     return Ok(false);
                 }
@@ -135,7 +149,11 @@ impl TextServiceFactory {
         Ok(true)
     }
 
-    pub fn handle_action(&self, actions: &[ClientAction], transition: CompositionState) -> Result<()> {
+    pub fn handle_action(
+        &self,
+        actions: &[ClientAction],
+        transition: CompositionState,
+    ) -> Result<()> {
         #[allow(clippy::let_and_return)]
         let composition = {
             let text_service = self.borrow()?;
@@ -165,6 +183,10 @@ impl TextServiceFactory {
                 ClientAction::MoveCursor(_offset) => {
                     // TODO: I'll use azookey-kkc's composingText
                     // self.set_cursor(offset)?;
+                }
+                ClientAction::SetIMEMode(mode) => {
+                    self.set_input_mode(mode.clone())?;
+                    spell.clear();
                 }
             }
         }
