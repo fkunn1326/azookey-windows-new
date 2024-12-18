@@ -1,6 +1,7 @@
 use crate::{
     engine::user_action::UserAction,
     extension::StringExt,
+    globals::GUID_DISPLAY_ATTRIBUTE,
     tsf::{
         edit_session::edit_session,
         factory::{TextServiceFactory, TextServiceFactory_Impl},
@@ -32,11 +33,14 @@ use windows::{
         Foundation::WPARAM,
         UI::TextServices::{
             ITfComposition, ITfCompositionSink, ITfCompositionSink_Impl, ITfContext,
-            ITfContextComposition, ITfInsertAtSelection, TF_AE_NONE, TF_ANCHOR_END,
-            TF_IAS_QUERYONLY, TF_SELECTION, TF_SELECTIONSTYLE,
+            ITfContextComposition, ITfInsertAtSelection, GUID_PROP_ATTRIBUTE, TF_AE_NONE,
+            TF_ANCHOR_END, TF_IAS_QUERYONLY, TF_SELECTION, TF_SELECTIONSTYLE, TF_ST_CORRECTION,
         },
     },
 };
+use windows_core::VARIANT;
+
+use super::client_action::ClientAction;
 
 impl ITfCompositionSink_Impl for TextServiceFactory_Impl {
     fn OnCompositionTerminated(
@@ -110,16 +114,25 @@ impl TextServiceFactory {
 
         if let Some(composition) = text_service.borrow_composition()?.tip_composition.clone() {
             edit_session(
-                self.borrow()?.tid,
-                self.borrow()?.context()?,
+                text_service.tid,
+                text_service.context()?,
                 Rc::new({
                     // unpadded is all you need!
                     let text = text.to_wide_16_unpadded();
-                    let context = self.borrow()?.context::<ITfContext>()?;
+                    let context = text_service.context::<ITfContext>()?;
+                    let display_attribute_atom = text_service.display_attribute_atom.clone();
                     move |cookie| unsafe {
                         let range = composition.GetRange()?;
 
-                        range.SetText(cookie, 0, &text)?;
+                        range.SetText(cookie, TF_ST_CORRECTION, &text)?;
+
+                        let display_attribute = display_attribute_atom.get(&GUID_DISPLAY_ATTRIBUTE);
+                        if let Some(display_attribute) = display_attribute {
+                            let pvar = VARIANT::from(*display_attribute as i32);
+                            let prop = context.GetProperty(&GUID_PROP_ATTRIBUTE)?;
+                            prop.SetValue(cookie, &range, &pvar)?;
+                        }
+
                         range.Collapse(cookie, TF_ANCHOR_END)?;
                         let selection = TF_SELECTION {
                             range: ManuallyDrop::new(Some(range.clone())),
@@ -152,60 +165,57 @@ impl TextServiceFactory {
         }
 
         #[allow(clippy::let_and_return)]
-        let mut composition = {
+        let composition = {
             let text_service = self.borrow()?;
             let composition = text_service.borrow_composition()?.clone();
             composition
         };
         let action = UserAction::from(wparam.0);
 
-        let transition = match composition.state {
+        let (transition, actions) = match composition.state {
             CompositionState::None => match action {
-                UserAction::Input(_char) => {
-                    self.start_composition()?;
-                    composition.spelling.push('a');
-
-                    CompositionState::Composing
-                }
-                UserAction::Number(number) => {
-                    self.start_composition()?;
-                    composition.spelling.push_str(&number.to_string());
-
-                    CompositionState::Composing
-                }
+                UserAction::Input(char) => (
+                    CompositionState::Composing,
+                    vec![
+                        ClientAction::StartComposition,
+                        ClientAction::AppendText(char.to_string()),
+                    ],
+                ),
+                UserAction::Number(number) => (
+                    CompositionState::Composing,
+                    vec![
+                        ClientAction::StartComposition,
+                        ClientAction::AppendText(number.to_string()),
+                    ],
+                ),
                 _ => {
                     return Ok(false);
                 }
             },
             CompositionState::Composing => match action {
-                UserAction::Input(char) => {
-                    composition.spelling.push(char);
-
-                    CompositionState::Composing
-                }
-                UserAction::Number(number) => {
-                    composition.spelling.push_str(&number.to_string());
-
-                    CompositionState::Composing
-                }
+                UserAction::Input(char) => (
+                    CompositionState::Composing,
+                    vec![ClientAction::AppendText(char.to_string())],
+                ),
+                UserAction::Number(number) => (
+                    CompositionState::Composing,
+                    vec![ClientAction::AppendText(number.to_string())],
+                ),
                 UserAction::Backspace => {
-                    composition.spelling.pop();
-
-                    if composition.spelling.is_empty() {
-                        self.end_composition()?;
-                        CompositionState::None
+                    if composition.spelling.len() == 1 {
+                        (
+                            CompositionState::None,
+                            vec![ClientAction::RemoveText, ClientAction::EndComposition],
+                        )
                     } else {
-                        CompositionState::Composing
+                        (CompositionState::Composing, vec![ClientAction::RemoveText])
                     }
                 }
-                UserAction::Enter => {
-                    self.end_composition()?;
-                    CompositionState::None
-                }
-                UserAction::Escape => {
-                    self.end_composition()?;
-                    CompositionState::None
-                }
+                UserAction::Enter => (CompositionState::None, vec![ClientAction::EndComposition]),
+                UserAction::Escape => (
+                    CompositionState::None,
+                    vec![ClientAction::RemoveText, ClientAction::EndComposition],
+                ),
                 _ => {
                     return Ok(false);
                 }
@@ -215,17 +225,29 @@ impl TextServiceFactory {
             }
         };
 
-        let spell = {
-            if transition == CompositionState::None {
-                "".to_string()
-            } else {
-                composition.spelling.clone()
-            }
-        };
+        let mut spell = composition.spelling.clone();
 
-        if !spell.is_empty() {
-            self.set_text(&spell)?;
-        };
+        for action in actions {
+            match action {
+                ClientAction::StartComposition => {
+                    self.start_composition()?;
+                }
+                ClientAction::EndComposition => {
+                    self.end_composition()?;
+                    spell.clear();
+                }
+                ClientAction::AppendText(text) => {
+                    spell.push_str(&text);
+                    self.set_text(&spell)?;
+                }
+                ClientAction::RemoveText => {
+                    spell.pop();
+                    self.set_text(&spell)?;
+                }
+            }
+        }
+
+        self.set_text(&spell)?;
 
         let text_service = self.borrow()?;
         let mut composition = text_service.borrow_mut_composition()?;

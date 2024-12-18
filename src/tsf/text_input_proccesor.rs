@@ -1,11 +1,17 @@
+use std::collections::HashMap;
+
+use crate::globals::GUID_DISPLAY_ATTRIBUTE;
+
 use super::factory::TextServiceFactory_Impl;
 use windows::{
     core::{Interface as _, Result},
     Win32::{
         Foundation::{BOOL, E_FAIL},
+        System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
         UI::TextServices::{
-            ITfKeyEventSink, ITfKeystrokeMgr, ITfSource, ITfTextInputProcessorEx_Impl,
-            ITfTextInputProcessor_Impl, ITfThreadMgr, ITfThreadMgrEventSink,
+            CLSID_TF_CategoryMgr, ITfCategoryMgr, ITfKeyEventSink, ITfKeystrokeMgr, ITfSource,
+            ITfTextInputProcessorEx_Impl, ITfTextInputProcessor_Impl, ITfThreadMgr,
+            ITfThreadMgrEventSink,
         },
     },
 };
@@ -40,6 +46,19 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
             text_service.cookie = Some(cookie);
         };
 
+        // initialize display attribute
+        let atom_map = unsafe {
+            let mut map = HashMap::new();
+            let category_mgr: ITfCategoryMgr =
+                CoCreateInstance(&CLSID_TF_CategoryMgr, None, CLSCTX_INPROC_SERVER)?;
+
+            let atom = category_mgr.RegisterGUID(&GUID_DISPLAY_ATTRIBUTE)?;
+            map.insert(GUID_DISPLAY_ATTRIBUTE, atom);
+            map
+        };
+
+        text_service.display_attribute_atom = atom_map;
+
         log::debug!("AdviseKeyEventSink success");
 
         Ok(())
@@ -70,6 +89,7 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
 
         let mut text_service = self.borrow_mut()?;
         let thread_mgr = text_service.thread_mgr()?;
+
         // remove thread manager event sink
         log::debug!("UnadviseThreadMgrEventSink");
         unsafe {
@@ -78,6 +98,9 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
                 text_service.cookie = None;
             }
         };
+
+        // clear display attribute
+        text_service.display_attribute_atom.clear();
 
         text_service.tid = 0;
         text_service.thread_mgr = None;

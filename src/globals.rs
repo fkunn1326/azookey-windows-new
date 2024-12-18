@@ -3,8 +3,12 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 use windows::{
     core::GUID,
     Win32::{
-        Foundation::{HMODULE, MAX_PATH},
+        Foundation::{FALSE, HMODULE, MAX_PATH},
         System::LibraryLoader::GetModuleFileNameW,
+        UI::TextServices::{
+            TF_ATTR_TARGET_CONVERTED, TF_CT_NONE, TF_DA_COLOR, TF_DA_COLOR_0, TF_DISPLAYATTRIBUTE,
+            TF_LS_SOLID,
+        },
     },
 };
 
@@ -19,12 +23,25 @@ pub const GUID_TEXT_SERVICE: GUID = GUID::from_u128(0xffdefe79_2fc2_11ef_b16b_94
 pub const GUID_PROFILE: GUID = GUID::from_u128(0xffdefe7a_2fc2_11ef_b16b_94e70b2c378c);
 
 // DisplayAttribute用のGUID3つ
-pub const GUID_DISPLAY_ATTRIBUTE_INPUT: GUID =
-    GUID::from_u128(0xffdefe7b_2fc2_11ef_b16b_94e70b2c378c);
-pub const GUID_DISPLAY_ATTRIBUTE_CONVERTED: GUID =
-    GUID::from_u128(0xffdefe7c_2fc2_11ef_b16b_94e70b2c378c);
-pub const GUID_DISPLAY_ATTRIBUTE_FOCUSED: GUID =
-    GUID::from_u128(0xffdefe7d_2fc2_11ef_b16b_94e70b2c378c);
+pub const GUID_DISPLAY_ATTRIBUTE: GUID = GUID::from_u128(0xffdefe7b_2fc2_11ef_b16b_94e70b2c378c);
+
+pub const DISPLAY_ATTRIBUTE: TF_DISPLAYATTRIBUTE = TF_DISPLAYATTRIBUTE {
+    crText: TF_DA_COLOR {
+        r#type: TF_CT_NONE,
+        Anonymous: TF_DA_COLOR_0 { nIndex: 0 },
+    },
+    crBk: TF_DA_COLOR {
+        r#type: TF_CT_NONE,
+        Anonymous: TF_DA_COLOR_0 { nIndex: 0 },
+    },
+    lsStyle: TF_LS_SOLID,
+    fBoldLine: FALSE,
+    crLine: TF_DA_COLOR {
+        r#type: TF_CT_NONE,
+        Anonymous: TF_DA_COLOR_0 { nIndex: 0 },
+    },
+    bAttr: TF_ATTR_TARGET_CONVERTED,
+};
 
 // これはなんだろう..?
 // https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/Win7Samples/winui/input/tsf/textservice/textservice-step04/LanguageBar.cpp#L23

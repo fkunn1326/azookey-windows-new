@@ -9,8 +9,8 @@ use windows::{
         Foundation::{BOOL, E_FAIL, E_NOINTERFACE},
         System::Com::{IClassFactory, IClassFactory_Impl},
         UI::TextServices::{
-            ITfCompositionSink, ITfKeyEventSink, ITfTextInputProcessor, ITfTextInputProcessorEx,
-            ITfThreadMgrEventSink,
+            ITfCompositionSink, ITfDisplayAttributeProvider, ITfKeyEventSink,
+            ITfTextInputProcessor, ITfTextInputProcessorEx, ITfThreadMgrEventSink,
         },
     },
 };
@@ -26,7 +26,8 @@ use super::text_service::TextService;
     ITfTextInputProcessorEx,
     ITfKeyEventSink,
     ITfThreadMgrEventSink,
-    ITfCompositionSink
+    ITfCompositionSink,
+    ITfDisplayAttributeProvider
 )]
 pub struct TextServiceFactory {
     text_service: RefCell<TextService>,

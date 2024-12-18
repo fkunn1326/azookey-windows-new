@@ -1,3 +1,4 @@
+pub(super) mod display_attribute;
 pub(super) mod edit_session;
 pub(super) mod factory;
 pub(super) mod key_event_sink;

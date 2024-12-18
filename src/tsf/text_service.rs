@@ -1,7 +1,10 @@
-use std::cell::{Ref, RefCell, RefMut};
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
+};
 
 use windows::{
-    core::{Interface, Result},
+    core::{Interface, Result, GUID},
     Win32::{
         Foundation::E_FAIL,
         UI::TextServices::{ITfContext, ITfTextInputProcessor, ITfThreadMgr},
@@ -17,6 +20,7 @@ pub struct TextService {
     pub cookie: Option<u32>,
     pub context: Option<ITfContext>,
     pub composition: RefCell<Composition>,
+    pub display_attribute_atom: HashMap<GUID, u32>,
     pub this: Option<ITfTextInputProcessor>,
 }
 
