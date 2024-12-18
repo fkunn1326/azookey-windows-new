@@ -13,7 +13,7 @@ use windows::{
 impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
     fn Activate(&self, ptim: Option<&ITfThreadMgr>, tid: u32) -> Result<()> {
         log::debug!("Activated with tid: {tid}");
-        let mut text_service = self.borrow_mut();
+        let mut text_service = self.borrow_mut()?;
 
         text_service.tid = tid;
         let thread_mgr = ptim.ok_or(E_FAIL)?;
@@ -47,17 +47,29 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
 
     fn Deactivate(&self) -> Result<()> {
         log::debug!("Deactivated");
-        let mut text_service = self.borrow_mut();
+        {
+            let text_service = self.borrow()?;
+            let thread_mgr = text_service.thread_mgr()?;
+
+            // end composition
+            self.end_composition()?;
+            let mut composition = text_service.borrow_mut_composition()?;
+
+            if composition.tip_composition.is_some() {
+                composition.tip_composition = None;
+            }
+
+            // remove key event sink
+            log::debug!("UnadviseKeyEventSink");
+            unsafe {
+                thread_mgr
+                    .cast::<ITfKeystrokeMgr>()?
+                    .UnadviseKeyEventSink(text_service.tid)?;
+            };
+        }
+
+        let mut text_service = self.borrow_mut()?;
         let thread_mgr = text_service.thread_mgr()?;
-
-        // remove key event sink
-        log::debug!("UnadviseKeyEventSink");
-        unsafe {
-            thread_mgr
-                .cast::<ITfKeystrokeMgr>()?
-                .UnadviseKeyEventSink(text_service.tid)?;
-        };
-
         // remove thread manager event sink
         log::debug!("UnadviseThreadMgrEventSink");
         unsafe {

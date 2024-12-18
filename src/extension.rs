@@ -11,12 +11,17 @@ use crate::check_win32_err;
 // string extension
 pub trait StringExt {
     fn to_wide_16(&self) -> Vec<u16>;
+    fn to_wide_16_unpadded(&self) -> Vec<u16>;
     fn to_wide(&self) -> Vec<u8>;
 }
 
 impl StringExt for &str {
     fn to_wide_16(&self) -> Vec<u16> {
         self.encode_utf16().chain(Some(0)).collect()
+    }
+
+    fn to_wide_16_unpadded(&self) -> Vec<u16> {
+        self.encode_utf16().collect()
     }
 
     fn to_wide(&self) -> Vec<u8> {

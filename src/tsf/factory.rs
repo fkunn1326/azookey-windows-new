@@ -1,15 +1,16 @@
 use std::{
-    cell::{RefCell, RefMut},
+    cell::{Ref, RefCell, RefMut},
     ffi::c_void,
 };
 
 use windows::{
     core::{implement, AsImpl, IUnknown, Interface, Result, GUID},
     Win32::{
-        Foundation::{BOOL, E_NOINTERFACE},
+        Foundation::{BOOL, E_FAIL, E_NOINTERFACE},
         System::Com::{IClassFactory, IClassFactory_Impl},
         UI::TextServices::{
-            ITfKeyEventSink, ITfTextInputProcessor, ITfTextInputProcessorEx, ITfThreadMgrEventSink,
+            ITfCompositionSink, ITfKeyEventSink, ITfTextInputProcessor, ITfTextInputProcessorEx,
+            ITfThreadMgrEventSink,
         },
     },
 };
@@ -24,7 +25,8 @@ use super::text_service::TextService;
     ITfTextInputProcessor,
     ITfTextInputProcessorEx,
     ITfKeyEventSink,
-    ITfThreadMgrEventSink
+    ITfThreadMgrEventSink,
+    ITfCompositionSink
 )]
 pub struct TextServiceFactory {
     text_service: RefCell<TextService>,
@@ -89,12 +91,22 @@ impl TextServiceFactory {
 
         let this = ITfTextInputProcessor::from(factory);
         let factory = unsafe { this.as_impl() };
-        factory.borrow_mut().this = Some(this.clone());
+        factory.borrow_mut()?.this = Some(this.clone());
 
         unsafe { factory.cast::<I>() }
     }
 
-    pub fn borrow_mut(&self) -> RefMut<TextService> {
-        self.text_service.borrow_mut()
+    pub fn borrow_mut(&self) -> Result<RefMut<TextService>> {
+        Ok(self.text_service.try_borrow_mut().map_err(|e| {
+            log::error!("Failed to borrow_mut {:#}", e);
+            E_FAIL
+        })?)
+    }
+
+    pub fn borrow(&self) -> Result<Ref<TextService>> {
+        Ok(self.text_service.try_borrow().map_err(|e| {
+            log::error!("Failed to borrow {:#}", e);
+            E_FAIL
+        })?)
     }
 }

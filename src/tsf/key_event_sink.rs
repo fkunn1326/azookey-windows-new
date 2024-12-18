@@ -21,6 +21,14 @@ impl ITfKeyEventSink_Impl for TextServiceFactory_Impl {
         Ok(true.into())
     }
 
+    fn OnKeyDown(&self, pic: Option<&ITfContext>, wparam: WPARAM, _lparam: LPARAM) -> Result<BOOL> {
+        // this function is called when a key is pressed
+        // we can handle key events here
+        let result = self.handle_key(pic, wparam)?;
+
+        Ok(result.into())
+    }
+
     fn OnTestKeyUp(
         &self,
         _pic: Option<&ITfContext>,
@@ -28,26 +36,14 @@ impl ITfKeyEventSink_Impl for TextServiceFactory_Impl {
         _lparam: LPARAM,
     ) -> Result<BOOL> {
         // same as OnTestKeyDown
-        Ok(true.into())
-    }
-
-    fn OnKeyDown(
-        &self,
-        _pic: Option<&ITfContext>,
-        wparam: WPARAM,
-        _lparam: LPARAM,
-    ) -> Result<BOOL> {
-        // this function is called when a key is pressed
-        // we can handle key events here
-        log::debug!("Key Down: {wparam:?}");
-        Ok(true.into())
+        Ok(false.into())
     }
 
     fn OnKeyUp(&self, _pic: Option<&ITfContext>, _wparam: WPARAM, _lparam: LPARAM) -> Result<BOOL> {
         // this function is called when a key is released
         // but we handle key events in OnKeyDown function
         // so just return S_OK
-        Ok(true.into())
+        Ok(false.into())
     }
 
     fn OnPreservedKey(&self, _pic: Option<&ITfContext>, _rguid: *const GUID) -> Result<BOOL> {
