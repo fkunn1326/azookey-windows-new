@@ -5,4 +5,6 @@ pub enum ClientAction {
 
     AppendText(String),
     RemoveText,
+
+    MoveCursor(i32),
 }

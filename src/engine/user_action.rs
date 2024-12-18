@@ -1,4 +1,6 @@
-use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyboardState, ToUnicode};
+use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyboardState, ToUnicode, VK_SHIFT};
+
+use crate::extension::VKeyExt;
 
 #[derive(Debug)]
 pub enum UserAction {
@@ -14,7 +16,7 @@ pub enum UserAction {
 }
 
 #[derive(Debug)]
-enum Navigation {
+pub enum Navigation {
     Up,
     Down,
     Left,
@@ -41,16 +43,21 @@ impl From<usize> for UserAction {
             0x27 => UserAction::Navigation(Navigation::Right), // VK_RIGHT
             0x28 => UserAction::Navigation(Navigation::Down), // VK_DOWN
 
-            0x30 | 0x60 => UserAction::Number(0), // VK_0, VK_NUMPAD0
-            0x31 | 0x61 => UserAction::Number(1), // VK_1, VK_NUMPAD1
-            0x32 | 0x62 => UserAction::Number(2), // VK_2, VK_NUMPAD2
-            0x33 | 0x63 => UserAction::Number(3), // VK_3, VK_NUMPAD3
-            0x34 | 0x64 => UserAction::Number(4), // VK_4, VK_NUMPAD4
-            0x35 | 0x65 => UserAction::Number(5), // VK_5, VK_NUMPAD5
-            0x36 | 0x66 => UserAction::Number(6), // VK_6, VK_NUMPAD6
-            0x37 | 0x67 => UserAction::Number(7), // VK_7, VK_NUMPAD7
-            0x38 | 0x68 => UserAction::Number(8), // VK_8, VK_NUMPAD8
-            0x39 | 0x69 => UserAction::Number(9), // VK_9, VK_NUMPAD9
+            0x30..=0x39 | 0x60..=0x69 if !VK_SHIFT.is_pressed() => {
+                match key_code {
+                    0x30 | 0x60 => UserAction::Number(0), // VK_0, VK_NUMPAD0
+                    0x31 | 0x61 => UserAction::Number(1), // VK_1, VK_NUMPAD1
+                    0x32 | 0x62 => UserAction::Number(2), // VK_2, VK_NUMPAD2
+                    0x33 | 0x63 => UserAction::Number(3), // VK_3, VK_NUMPAD3
+                    0x34 | 0x64 => UserAction::Number(4), // VK_4, VK_NUMPAD4
+                    0x35 | 0x65 => UserAction::Number(5), // VK_5, VK_NUMPAD5
+                    0x36 | 0x66 => UserAction::Number(6), // VK_6, VK_NUMPAD6
+                    0x37 | 0x67 => UserAction::Number(7), // VK_7, VK_NUMPAD7
+                    0x38 | 0x68 => UserAction::Number(8), // VK_8, VK_NUMPAD8
+                    0x39 | 0x69 => UserAction::Number(9), // VK_9, VK_NUMPAD9
+                    _ => UserAction::Unknown,
+                }
+            }
 
             0x75 => UserAction::Function(Function::Six), // VK_F6
             0x76 => UserAction::Function(Function::Seven), // VK_F7
