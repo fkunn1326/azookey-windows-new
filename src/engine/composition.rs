@@ -15,7 +15,7 @@ use windows::{
     },
 };
 
-use super::{client_action::ClientAction, input_mode::InputMode, user_action::Navigation};
+use super::{client_action::ClientAction, full_width::to_fullwidth, input_mode::InputMode, roman2kana, user_action::Navigation};
 
 #[derive(Default, Clone, PartialEq, Debug)]
 pub enum CompositionState {
@@ -29,6 +29,7 @@ pub enum CompositionState {
 #[derive(Default, Clone, Debug)]
 pub struct Composition {
     pub spelling: String,
+    pub kana: String,
     pub suggestions: Vec<String>,
     pub state: CompositionState,
     pub tip_composition: Option<ITfComposition>,
@@ -81,7 +82,7 @@ impl TextServiceFactory {
                         ClientAction::AppendText(char.to_string()),
                     ],
                 ),
-                UserAction::Number(number) => (
+                UserAction::Number(number) if mode == InputMode::Kana  => (
                     CompositionState::Composing,
                     vec![
                         ClientAction::StartComposition,
@@ -90,7 +91,10 @@ impl TextServiceFactory {
                 ),
                 UserAction::ToggleInputMode => (
                     CompositionState::None,
-                    vec![ClientAction::SetIMEMode(InputMode::Kana)],
+                    vec![(match mode {
+                        InputMode::Kana => ClientAction::SetIMEMode(InputMode::Latin),
+                        InputMode::Latin => ClientAction::SetIMEMode(InputMode::Kana),
+                    })],
                 ),
                 _ => {
                     return Ok(false);
@@ -155,13 +159,16 @@ impl TextServiceFactory {
         transition: CompositionState,
     ) -> Result<()> {
         #[allow(clippy::let_and_return)]
-        let composition = {
+        let (composition, mode) = {
             let text_service = self.borrow()?;
             let composition = text_service.borrow_composition()?.clone();
-            composition
+            let mode = text_service.mode.clone();
+            (composition, mode)
         };
 
         let mut spell = composition.spelling.clone();
+        let mut kana = composition.kana.clone();
+        let mut transition = transition;
 
         for action in actions {
             match action {
@@ -171,14 +178,27 @@ impl TextServiceFactory {
                 ClientAction::EndComposition => {
                     self.end_composition()?;
                     spell.clear();
+                    kana.clear();
                 }
                 ClientAction::AppendText(text) => {
-                    spell.push_str(text);
-                    self.set_text(&spell)?;
+                    let text = match mode {
+                        InputMode::Kana => to_fullwidth(text),
+                        InputMode::Latin => text.to_string(),
+                    };
+                    spell.push_str(&text);
+                    kana = roman2kana::to_hiragana(&kana, &text);
+                    self.set_text(&kana)?;
                 }
                 ClientAction::RemoveText => {
                     spell.pop();
-                    self.set_text(&spell)?;
+                    kana.pop();
+                    self.set_text(&kana)?;
+                    if kana.is_empty() {
+                        transition = CompositionState::None;
+
+                        let actions = vec![ClientAction::EndComposition];
+                        self.handle_action(&actions, CompositionState::None)?;
+                    }
                 }
                 ClientAction::MoveCursor(_offset) => {
                     // TODO: I'll use azookey-kkc's composingText
@@ -187,6 +207,7 @@ impl TextServiceFactory {
                 ClientAction::SetIMEMode(mode) => {
                     self.set_input_mode(mode.clone())?;
                     spell.clear();
+                    kana.clear();
                 }
             }
         }
@@ -194,6 +215,7 @@ impl TextServiceFactory {
         let text_service = self.borrow()?;
         let mut composition = text_service.borrow_mut_composition()?;
         composition.spelling = spell.clone();
+        composition.kana = kana.clone();
         composition.state = transition;
 
         Ok(())
