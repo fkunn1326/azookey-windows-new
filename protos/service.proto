@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package azookey;
+
+// ComposingText represents the text and its associated suggestions.
+message ComposingText {
+  string spell = 1; // The main text content.
+  repeated string suggestions = 2; // List of suggestions for the text.
+}
+
+// Request message for AppendText.
+message AppendTextRequest {
+  string text_to_append = 1; // The text to append to the current content.
+}
+
+// Response message for AppendText.
+message AppendTextResponse {
+  ComposingText composing_text = 1; // The resulting text and suggestions.
+}
+
+// Request message for RemoveText.
+message RemoveTextRequest {}
+
+// Response message for RemoveText.
+message RemoveTextResponse {
+  ComposingText composing_text = 1; // The resulting text and suggestions.
+}
+
+// Request message for MoveCursor.
+message MoveCursorRequest {
+  int32 offset = 1; // The new cursor position.
+}
+
+// Response message for MoveCursor.
+message MoveCursorResponse {
+  ComposingText composing_text = 1; // The resulting text and suggestions.
+}
+
+// Request message for ClearText.
+message ClearTextRequest {}
+
+// Response message for ClearText.
+message ClearTextResponse {}
+
+// Service definition for text editing operations.
+service AzookeyService {
+  rpc AppendText (AppendTextRequest) returns (AppendTextResponse);
+  rpc RemoveText (RemoveTextRequest) returns (RemoveTextResponse);
+  rpc MoveCursor (MoveCursorRequest) returns (MoveCursorResponse);
+  rpc ClearText (ClearTextRequest) returns (ClearTextResponse);
+}

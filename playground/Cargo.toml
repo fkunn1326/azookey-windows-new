@@ -1,0 +1,12 @@
+[package]
+name = "playground"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.95"
+futures = "0.3.31"
+tonic = "0.12.3"
+log = "0.4.22"
+protos = { path = "../protos" }
+tokio = { version = "1.42.0", features = ["rt-multi-thread"] }

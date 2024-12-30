@@ -1,0 +1,6 @@
+[submodule "server-swift/azooKey_dictionary_storage"]
+	path = server-swift/azooKey_dictionary_storage
+	url = https://github.com/ensan-hcl/azooKey_dictionary_storage.git
+[submodule "server-swift/azooKey_emoji_dictionary_storage"]
+	path = server-swift/azooKey_emoji_dictionary_storage
+	url = https://github.com/ensan-hcl/azooKey_emoji_dictionary_storage.git

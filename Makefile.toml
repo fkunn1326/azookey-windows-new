@@ -1,0 +1,43 @@
+# makefile for cargo
+[config]
+default_to_workspace = false
+
+[tasks.format]
+command = "cargo"
+args = ["fmt"]
+
+[tasks.build_swift]
+description = "Build the swift code"
+script_runner = "@shell"
+script = """
+cd server-swift
+swift build -c release
+cp .build/release/azookey-server.lib ../
+"""
+
+[tasks.build]
+command = "cargo"
+args = ["build", "--release"]
+
+[tasks.post_build]
+description = "Copy necessary files"
+script_runner = "powershell"
+script_extension = "ps1"
+script  = """
+cp server-swift/.build/x86_64-unknown-windows-msvc/release/azookey-server.dll target/release/
+cp server-swift/llama.dll target/release/
+
+cp $env:APPDATA/../Local/Programs/Swift/Runtimes/*/usr/bin/* target/release/
+
+cp -Recurse -Force server-swift/azooKey_emoji_dictionary_storage/EmojiDictionary target/release/
+cp -Recurse -Force server-swift/azooKey_dictionary_storage/Dictionary target/release/
+"""
+
+[tasks.flow]
+description = "Run the flow"
+dependencies = [
+    "format",
+    "build_swift",
+    "build",
+    "post_build"
+]

@@ -1,5 +1,0 @@
-#include  "res.h"
-
-IDI_ICON ICON azookey.ico
-IDI_MODE_KANA ICON kana.ico
-IDI_MODE_LATN ICON latin.ico

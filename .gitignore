@@ -1,3 +1,4 @@
-/target
-/scripts/*.exe
-/logs/*.log
+target
+scripts/*.exe
+logs/*.log
+.idea
