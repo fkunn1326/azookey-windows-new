@@ -5,7 +5,7 @@ use crate::{
 };
 
 use super::{
-    client_action::ClientAction, full_width::to_fullwidth, input_mode::InputMode, roman2kana,
+    client_action::ClientAction, full_width::to_fullwidth, input_mode::InputMode,
     user_action::Navigation,
 };
 use crate::engine::azookey_service::AzookeyService;

@@ -5,7 +5,7 @@ use windows::{
     Win32::UI::TextServices::{ITfLangBarItemButton, ITfLangBarItemMgr},
 };
 
-use super::{azookey_service, client_action::ClientAction, composition::CompositionState};
+use super::{client_action::ClientAction, composition::CompositionState};
 
 #[derive(Default, Clone, PartialEq, Debug)]
 pub enum InputMode {

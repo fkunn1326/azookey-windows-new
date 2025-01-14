@@ -103,6 +103,7 @@ static HALF_FULL: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(
     ])
 });
 
+#[allow(dead_code)]
 pub fn to_halfwidth(s: &str) -> String {
     s.chars()
         .map(|c| {
