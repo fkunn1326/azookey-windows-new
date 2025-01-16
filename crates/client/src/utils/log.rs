@@ -1,4 +1,4 @@
-const LOG_FOLDER: &str = "Z:/logs";
+const LOG_FOLDER: &str = "D:/azookey-windows/logs";
 
 pub fn setup_logger() -> anyhow::Result<()> {
     let timestamp = chrono::Local::now().format("%Y-%m-%d-%H.%M.%S");

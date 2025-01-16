@@ -43,8 +43,14 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
                 &ITfThreadMgrEventSink::IID,
                 &text_service.this::<ITfThreadMgrEventSink>()?,
             )?;
-            text_service.cookie = Some(cookie);
+            text_service
+                .cookies
+                .insert(ITfThreadMgrEventSink::IID, cookie);
         };
+
+        // initialize text layout sink
+        log::debug!("AdviseTextLayoutSink");
+        text_service.advise_text_layout_sink()?;
 
         // initialize display attribute
         log::debug!("Initialize display attribute");
@@ -109,11 +115,14 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
         // remove thread manager event sink
         log::debug!("UnadviseThreadMgrEventSink");
         unsafe {
-            if let Some(cookie) = text_service.cookie {
+            if let Some(cookie) = text_service.cookies.remove(&ITfThreadMgrEventSink::IID) {
                 thread_mgr.cast::<ITfSource>()?.UnadviseSink(cookie)?;
-                text_service.cookie = None;
             }
         };
+
+        // remove text layout sink
+        log::debug!("UnadviseTextLayoutSink");
+        text_service.unadvise_text_layout_sink()?;
 
         // clear display attribute
         text_service.display_attribute_atom.clear();

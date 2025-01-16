@@ -162,6 +162,7 @@ impl AzookeyService for MyAzookeyService {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("AzookeyServer started");
     // get executable directory
     let current_exe = std::env::current_exe()?;
     let parent_dir = current_exe.parent().unwrap();

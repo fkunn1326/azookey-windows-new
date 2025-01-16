@@ -1,4 +1,8 @@
 use anyhow::Context as _;
+use protos::proto::window_service_server::{
+    WindowService as WindowServiceProto, WindowServiceServer,
+};
+use protos::proto::{EmptyResponse, SetPositionRequest, WindowControlRequest};
 use tao::dpi::{PhysicalPosition, PhysicalSize};
 use tao::platform::windows::{
     EventLoopBuilderExtWindows, WindowBuilderExtWindows, WindowExtWindows,
@@ -8,6 +12,9 @@ use tao::{
     event_loop::{ControlFlow, EventLoopBuilder},
     window::WindowBuilder,
 };
+use tokio::sync::mpsc;
+use tonic::transport::Server;
+use tonic::{Request, Response, Status};
 use windows::Win32::{
     Foundation::HWND,
     UI::WindowsAndMessaging::{
@@ -17,7 +24,76 @@ use windows::Win32::{
 };
 use wry::WebViewBuilder;
 
-fn main() -> anyhow::Result<()> {
+#[derive(Debug, Clone)]
+struct WindowController {
+    sender: mpsc::Sender<WindowAction>,
+}
+
+impl WindowController {
+    fn new(sender: mpsc::Sender<WindowAction>) -> Self {
+        Self { sender }
+    }
+}
+
+// ウィンドウ操作コマンド
+#[derive(Debug)]
+enum WindowAction {
+    Show,
+    Hide,
+    SetPosition { x: i32, y: i32 },
+}
+
+#[derive(Debug)]
+struct WindowService {
+    controller: WindowController,
+}
+
+#[tonic::async_trait]
+impl WindowServiceProto for WindowService {
+    async fn control_window(
+        &self,
+        request: Request<WindowControlRequest>,
+    ) -> Result<Response<EmptyResponse>, Status> {
+        let action = request.into_inner().action();
+        match action {
+            show => {
+                self.controller
+                    .sender
+                    .send(WindowAction::Show)
+                    .await
+                    .unwrap();
+            }
+            hide => {
+                self.controller
+                    .sender
+                    .send(WindowAction::Hide)
+                    .await
+                    .unwrap();
+            }
+        }
+
+        Ok(Response::new(EmptyResponse {}))
+    }
+
+    async fn set_window_position(
+        &self,
+        request: Request<SetPositionRequest>,
+    ) -> Result<Response<EmptyResponse>, Status> {
+        let position = request.into_inner().position.unwrap();
+        let x = position.x;
+        let y = position.y;
+        self.controller
+            .sender
+            .send(WindowAction::SetPosition { x, y })
+            .await
+            .unwrap();
+
+        Ok(Response::new(EmptyResponse {}))
+    }
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let event_loop = EventLoopBuilder::<String>::with_user_event()
         .with_any_thread(true)
         .build();
@@ -160,6 +236,43 @@ fn main() -> anyhow::Result<()> {
         .context("Failed to create webview")?;
 
     window.set_outer_position(PhysicalPosition::new(500f64, 500f64));
+
+    // initialize window controller
+    let (tx, mut rx) = mpsc::channel(32);
+    let window_controller = WindowController::new(tx.clone());
+    let grpc_service = WindowService {
+        controller: window_controller.clone(),
+    };
+
+    // start grpc server
+    tokio::spawn(async move {
+        let addr = "[::1]:50052".parse().unwrap();
+
+        println!("WindowServer listening on {}", addr);
+        Server::builder()
+            .add_service(WindowServiceServer::new(grpc_service))
+            .serve(addr)
+            .await
+            .expect("gRPC server failed");
+    });
+
+    // handle window actions
+    tokio::spawn(async move {
+        while let Some(action) = rx.recv().await {
+            match action {
+                WindowAction::Show => {
+                    window.set_visible(true);
+                }
+                WindowAction::Hide => {
+                    window.set_visible(false);
+                }
+                WindowAction::SetPosition { x, y } => {
+                    println!("SetPosition: x={}, y={}", x, y);
+                    window.set_outer_position(PhysicalPosition::new(x as f64, y as f64));
+                }
+            }
+        }
+    });
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;

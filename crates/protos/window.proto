@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package window;
+
+// 候補ウィンドウの表示制御タイプ
+enum WindowAction {
+  SHOW = 0; // ウィンドウを表示
+  HIDE = 1; // ウィンドウを非表示
+}
+
+// 候補ウィンドウの位置を示すメッセージ
+message WindowPosition {
+  int32 x = 1; // X座標
+  int32 y = 2; // Y座標
+}
+
+// 候補ウィンドウの制御メッセージ
+message WindowControlRequest {
+  WindowAction action = 1; // ウィンドウ制御の種類
+}
+
+// 候補ウィンドウの位置設定メッセージ
+message SetPositionRequest {
+  WindowPosition position = 1; // 設定するウィンドウの位置
+}
+
+// 候補ウィンドウ制御に対する空のレスポンス
+message EmptyResponse {}
+
+// 候補ウィンドウの制御サービス定義
+service WindowService {
+  rpc ControlWindow (WindowControlRequest) returns (EmptyResponse);
+  rpc SetWindowPosition (SetPositionRequest) returns (EmptyResponse);
+}

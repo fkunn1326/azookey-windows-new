@@ -1,7 +1,7 @@
 use windows::{
     core::{implement, Result},
     Win32::{
-        Foundation::E_FAIL,
+        Foundation::{E_FAIL, RECT},
         UI::TextServices::{
             ITfCompositionSink, ITfContext, ITfContextComposition, ITfEditSession,
             ITfEditSession_Impl, ITfInsertAtSelection, GUID_PROP_ATTRIBUTE, TF_AE_NONE,
@@ -12,7 +12,11 @@ use windows::{
 };
 use windows_core::VARIANT;
 
-use std::{cell::RefCell, mem::ManuallyDrop, rc::Rc};
+use std::{
+    cell::RefCell,
+    mem::ManuallyDrop,
+    rc::Rc,
+};
 
 use crate::{extension::StringExt as _, globals::GUID_DISPLAY_ATTRIBUTE};
 
@@ -191,6 +195,40 @@ impl TextServiceFactory {
             )?
         } else {
             log::warn!("Composition is not started");
+        }
+
+        Ok(())
+    }
+
+    pub fn get_and_send_pos(&self) -> Result<()> {
+        let text_service = self.borrow()?;
+        let composition = text_service.borrow_composition()?;
+
+        // I don't want to send, but edit_session is asynchronous, so I have to send to avoid blocking the main thread.
+        if let Some(tip_composition) = composition.tip_composition.clone() {
+            edit_session(
+                text_service.tid,
+                text_service.context()?,
+                Rc::new({
+                    let context = text_service.context::<ITfContext>()?;
+                    let ipc_service = composition.ipc_service.clone();
+
+                    move |cookie| unsafe {
+                        let view = context.GetActiveView()?;
+                        let range = tip_composition.GetRange()?;
+                        let mut ipc_service = ipc_service.clone();
+
+                        let mut rect = RECT::default();
+                        let mut clipped = false.into();
+                        view.GetTextExt(cookie, &range, &mut rect, &mut clipped)?;
+
+                        ipc_service.set_window_position(rect.left, rect.bottom)?;
+                        Ok(())
+                    }
+                }),
+            )?
+        } else {
+            return Ok(());
         }
 
         Ok(())

@@ -8,7 +8,7 @@ use super::{
     client_action::ClientAction, full_width::to_fullwidth, input_mode::InputMode,
     user_action::Navigation,
 };
-use crate::engine::azookey_service::AzookeyService;
+use crate::engine::ipc_service::IPCService;
 use windows::{
     core::Result,
     Win32::{
@@ -35,7 +35,7 @@ pub struct Composition {
     pub suggestion: String,
     pub suggestions: Vec<String>,
     pub state: CompositionState,
-    pub azookey_service: AzookeyService,
+    pub ipc_service: IPCService,
     pub tip_composition: Option<ITfComposition>,
 }
 
@@ -173,7 +173,7 @@ impl TextServiceFactory {
 
         let mut spell = composition.spelling.clone();
         let mut suggestion = composition.suggestion.clone();
-        let mut azookey_service = composition.azookey_service.clone();
+        let mut ipc_service = composition.ipc_service.clone();
         let mut transition = transition;
 
         for action in actions {
@@ -185,7 +185,7 @@ impl TextServiceFactory {
                     self.end_composition()?;
                     spell.clear();
                     suggestion.clear();
-                    azookey_service.clear_text().unwrap();
+                    ipc_service.clear_text().unwrap();
                 }
                 ClientAction::AppendText(text) => {
                     let text = match mode {
@@ -194,14 +194,14 @@ impl TextServiceFactory {
                     };
                     spell.push_str(&text);
 
-                    suggestion = azookey_service
+                    suggestion = ipc_service
                         .append_text(text.clone())
                         .expect("append_text failed");
                     self.set_text(&suggestion)?;
                 }
                 ClientAction::RemoveText => {
                     spell.pop();
-                    suggestion = azookey_service.remove_text().expect("remove_text failed");
+                    suggestion = ipc_service.remove_text().expect("remove_text failed");
                     self.set_text(&suggestion)?;
                     if suggestion.is_empty() {
                         transition = CompositionState::None;
@@ -218,7 +218,7 @@ impl TextServiceFactory {
                     self.set_input_mode(mode.clone())?;
                     spell.clear();
                     suggestion.clear();
-                    azookey_service.clear_text().unwrap();
+                    ipc_service.clear_text().unwrap();
                 }
             }
         }
