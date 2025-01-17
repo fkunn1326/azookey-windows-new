@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use protos::proto::window_service_server::{
     WindowService as WindowServiceProto, WindowServiceServer,
 };
-use protos::proto::{EmptyResponse, SetPositionRequest, WindowControlRequest};
+use protos::proto::{EmptyResponse, SetPositionRequest};
 use tao::dpi::{PhysicalPosition, PhysicalSize};
 use tao::platform::windows::{
     EventLoopBuilderExtWindows, WindowBuilderExtWindows, WindowExtWindows,
@@ -15,6 +15,7 @@ use tao::{
 use tokio::sync::mpsc;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
+use windows::Win32::UI::WindowsAndMessaging::SW_HIDE;
 use windows::Win32::{
     Foundation::HWND,
     UI::WindowsAndMessaging::{
@@ -50,31 +51,29 @@ struct WindowService {
 
 #[tonic::async_trait]
 impl WindowServiceProto for WindowService {
-    async fn control_window(
+    async fn show_window(
         &self,
-        request: Request<WindowControlRequest>,
+        _request: Request<EmptyResponse>,
     ) -> Result<Response<EmptyResponse>, Status> {
-        let action = request.into_inner().action();
-        match action {
-            show => {
-                self.controller
-                    .sender
-                    .send(WindowAction::Show)
-                    .await
-                    .unwrap();
-            }
-            hide => {
-                self.controller
-                    .sender
-                    .send(WindowAction::Hide)
-                    .await
-                    .unwrap();
-            }
-        }
-
+        self.controller
+            .sender
+            .send(WindowAction::Show)
+            .await
+            .unwrap();
         Ok(Response::new(EmptyResponse {}))
     }
 
+    async fn hide_window(
+        &self,
+        _request: Request<EmptyResponse>,
+    ) -> Result<Response<EmptyResponse>, Status> {
+        self.controller
+            .sender
+            .send(WindowAction::Hide)
+            .await
+            .unwrap();
+        Ok(Response::new(EmptyResponse {}))
+    }
     async fn set_window_position(
         &self,
         request: Request<SetPositionRequest>,
@@ -100,8 +99,8 @@ async fn main() -> anyhow::Result<()> {
     let window = WindowBuilder::new()
         .with_decorations(false)
         .with_title("CandidateList")
-        // .with_focused(false)
-        // .with_visible(false)
+        .with_focused(false)
+        .with_visible(false)
         .with_undecorated_shadow(false)
         .with_transparent(true)
         .build(&event_loop)
@@ -125,10 +124,6 @@ async fn main() -> anyhow::Result<()> {
         let style = WS_POPUP.0;
         SetWindowLongW(HWND(hwnd), GWL_STYLE, style as i32);
     };
-
-    unsafe {
-        let _ = ShowWindow(HWND(hwnd), SW_SHOWNOACTIVATE);
-    }
 
     let _webview = WebViewBuilder::new()
         .with_transparent(true)
@@ -261,13 +256,19 @@ async fn main() -> anyhow::Result<()> {
         while let Some(action) = rx.recv().await {
             match action {
                 WindowAction::Show => {
-                    window.set_visible(true);
+                    let _ = unsafe {
+                        ShowWindow(
+                            HWND(window.hwnd() as *mut std::ffi::c_void),
+                            SW_SHOWNOACTIVATE,
+                        )
+                    };
                 }
                 WindowAction::Hide => {
-                    window.set_visible(false);
+                    let _ = unsafe {
+                        ShowWindow(HWND(window.hwnd() as *mut std::ffi::c_void), SW_HIDE)
+                    };
                 }
                 WindowAction::SetPosition { x, y } => {
-                    println!("SetPosition: x={}, y={}", x, y);
                     window.set_outer_position(PhysicalPosition::new(x as f64, y as f64));
                 }
             }

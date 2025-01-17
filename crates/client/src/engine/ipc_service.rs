@@ -91,23 +91,19 @@ impl IPCService {
 // implement methods to interact with candidate window server
 impl IPCService {
     pub fn show_window(&mut self) -> anyhow::Result<()> {
-        let request = tonic::Request::new(protos::proto::WindowControlRequest {
-            action: protos::proto::WindowAction::Show.into(),
-        });
+        let request = tonic::Request::new(protos::proto::EmptyResponse {});
         self.runtime
             .clone()
-            .block_on(self.window_client.control_window(request))?;
+            .block_on(self.window_client.show_window(request))?;
 
         Ok(())
     }
 
     pub fn hide_window(&mut self) -> anyhow::Result<()> {
-        let request = tonic::Request::new(protos::proto::WindowControlRequest {
-            action: protos::proto::WindowAction::Hide.into(),
-        });
+        let request = tonic::Request::new(protos::proto::EmptyResponse {});
         self.runtime
             .clone()
-            .block_on(self.window_client.control_window(request))?;
+            .block_on(self.window_client.hide_window(request))?;
 
         Ok(())
     }

@@ -175,11 +175,13 @@ impl TextServiceFactory {
             match action {
                 ClientAction::StartComposition => {
                     self.start_composition()?;
+                    ipc_service.show_window()?;
                 }
                 ClientAction::EndComposition => {
                     self.set_text(&suggestion)?;
                     self.end_composition()?;
                     suggestion.clear();
+                    ipc_service.hide_window()?;
                     ipc_service.clear_text()?;
                 }
                 ClientAction::AppendText(text) => {
