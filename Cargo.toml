@@ -5,4 +5,4 @@ members = [
   "crates/server",
   "crates/protos",
   "crates/ui"
-]
+, "crates/macros"]

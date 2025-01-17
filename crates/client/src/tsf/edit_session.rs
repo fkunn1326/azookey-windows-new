@@ -1,5 +1,5 @@
 use windows::{
-    core::{implement, Result},
+    core::implement,
     Win32::{
         Foundation::{E_FAIL, RECT},
         UI::TextServices::{
@@ -12,11 +12,9 @@ use windows::{
 };
 use windows_core::VARIANT;
 
-use std::{
-    cell::RefCell,
-    mem::ManuallyDrop,
-    rc::Rc,
-};
+use std::{cell::RefCell, mem::ManuallyDrop, rc::Rc};
+
+use anyhow::Result;
 
 use crate::{extension::StringExt as _, globals::GUID_DISPLAY_ATTRIBUTE};
 
@@ -39,7 +37,7 @@ pub fn edit_session(
 
     match result {
         Ok(_) => Ok(()),
-        Err(e) => Err(e),
+        Err(e) => Err(anyhow::Error::new(e)),
     }
 }
 

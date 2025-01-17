@@ -4,9 +4,9 @@ use crate::globals::GUID_DISPLAY_ATTRIBUTE;
 
 use super::factory::TextServiceFactory_Impl;
 use windows::{
-    core::{Interface as _, Result},
+    core::Interface as _,
     Win32::{
-        Foundation::{BOOL, E_FAIL},
+        Foundation::BOOL,
         System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
         UI::TextServices::{
             CLSID_TF_CategoryMgr, ITfCategoryMgr, ITfKeyEventSink, ITfKeystrokeMgr,
@@ -16,13 +16,16 @@ use windows::{
     },
 };
 
+use anyhow::{Context, Result};
+
 impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
+    #[macros::anyhow]
     fn Activate(&self, ptim: Option<&ITfThreadMgr>, tid: u32) -> Result<()> {
         log::debug!("Activated with tid: {tid}");
         let mut text_service = self.borrow_mut()?;
 
         text_service.tid = tid;
-        let thread_mgr = ptim.ok_or(E_FAIL)?;
+        let thread_mgr = ptim.context("Thread manager is null")?;
         text_service.thread_mgr = Some(thread_mgr.clone());
 
         // initialize key event sink
@@ -79,6 +82,7 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
         Ok(())
     }
 
+    #[macros::anyhow]
     fn Deactivate(&self) -> Result<()> {
         log::debug!("Deactivated");
         {
@@ -136,6 +140,7 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
 }
 
 impl ITfTextInputProcessorEx_Impl for TextServiceFactory_Impl {
+    #[macros::anyhow]
     fn ActivateEx(&self, ptim: Option<&ITfThreadMgr>, tid: u32, _dwflags: u32) -> Result<()> {
         // called when the text service is activated
         // if this function is implemented, the Activate() function won't be called

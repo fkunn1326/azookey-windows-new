@@ -1,7 +1,7 @@
 use windows::{
-    core::{IUnknown, Interface as _, Result, BSTR, GUID, PCWSTR},
+    core::{IUnknown, Interface as _, BSTR, GUID, PCWSTR},
     Win32::{
-        Foundation::{BOOL, E_FAIL, E_INVALIDARG, POINT, RECT},
+        Foundation::{BOOL, E_INVALIDARG, POINT, RECT},
         System::Ole::CONNECT_E_CANNOTCONNECT,
         UI::{
             TextServices::{
@@ -19,6 +19,8 @@ use crate::{
     globals::{DllModule, GUID_TEXT_SERVICE, TEXTSERVICE_LANGBARITEMSINK_COOKIE},
 };
 
+use anyhow::Result;
+
 use super::factory::TextServiceFactory_Impl;
 
 const INFO: TF_LANGBARITEMINFO = TF_LANGBARITEMINFO {
@@ -33,6 +35,7 @@ const INFO: TF_LANGBARITEMINFO = TF_LANGBARITEMINFO {
 // if not, you will get E_FAIL error in ITfLangBarItemMgr::AddItem
 
 impl ITfLangBarItem_Impl for TextServiceFactory_Impl {
+    #[macros::anyhow]
     fn GetInfo(&self, p_info: *mut TF_LANGBARITEMINFO) -> Result<()> {
         unsafe {
             *p_info = INFO;
@@ -40,21 +43,25 @@ impl ITfLangBarItem_Impl for TextServiceFactory_Impl {
         Ok(())
     }
 
+    #[macros::anyhow]
     fn GetStatus(&self) -> Result<u32> {
         Ok(0)
     }
 
+    #[macros::anyhow]
     fn Show(&self, _f_show: BOOL) -> Result<()> {
         Ok(())
     }
 
     // this will be shown as a tooltip when you hover the language bar item
+    #[macros::anyhow]
     fn GetTooltipString(&self) -> Result<BSTR> {
         Ok(BSTR::default())
     }
 }
 
 impl ITfLangBarItemButton_Impl for TextServiceFactory_Impl {
+    #[macros::anyhow]
     fn OnClick(&self, _click: TfLBIClick, _pt: &POINT, _prcarea: *const RECT) -> Result<()> {
         let mode = {
             let text_service = self.borrow()?;
@@ -70,20 +77,20 @@ impl ITfLangBarItemButton_Impl for TextServiceFactory_Impl {
     }
 
     // this method should not be called
+    #[macros::anyhow]
     fn InitMenu(&self, _pmenu: Option<&ITfMenu>) -> Result<()> {
         Ok(())
     }
 
     // this method should not be called
+    #[macros::anyhow]
     fn OnMenuSelect(&self, _w_id: u32) -> Result<()> {
         Ok(())
     }
 
+    #[macros::anyhow]
     fn GetIcon(&self) -> Result<HICON> {
-        let dll_module = DllModule::get().map_err(|e| {
-            log::error!("Failed to get DllModule {:?}", e);
-            E_FAIL
-        })?;
+        let dll_module = DllModule::get()?;
 
         let icon_id = match self.borrow()?.mode {
             InputMode::Kana => 102,
@@ -104,29 +111,38 @@ impl ITfLangBarItemButton_Impl for TextServiceFactory_Impl {
         }
     }
 
+    #[macros::anyhow]
     fn GetText(&self) -> Result<BSTR> {
         Ok(BSTR::default())
     }
 }
 
 impl ITfSource_Impl for TextServiceFactory_Impl {
-    fn AdviseSink(&self, riid: *const GUID, punk: Option<&IUnknown>) -> windows::core::Result<u32> {
+    #[macros::anyhow]
+    fn AdviseSink(&self, riid: *const GUID, punk: Option<&IUnknown>) -> Result<u32> {
         let riid = unsafe { *riid };
 
         if riid != ITfLangBarItemSink::IID {
-            return Err(E_INVALIDARG.into());
+            return Err(anyhow::Error::new(windows_core::Error::from_hresult(
+                E_INVALIDARG,
+            )));
         }
 
         if punk.is_none() {
-            return Err(E_INVALIDARG.into());
+            return Err(anyhow::Error::new(windows_core::Error::from_hresult(
+                E_INVALIDARG,
+            )));
         }
 
         Ok(TEXTSERVICE_LANGBARITEMSINK_COOKIE)
     }
 
-    fn UnadviseSink(&self, dw_cookie: u32) -> windows::core::Result<()> {
+    #[macros::anyhow]
+    fn UnadviseSink(&self, dw_cookie: u32) -> Result<()> {
         if dw_cookie != TEXTSERVICE_LANGBARITEMSINK_COOKIE {
-            return Err(CONNECT_E_CANNOTCONNECT.into());
+            return Err(anyhow::Error::new(windows_core::Error::from_hresult(
+                CONNECT_E_CANNOTCONNECT,
+            )));
         }
 
         Ok(())

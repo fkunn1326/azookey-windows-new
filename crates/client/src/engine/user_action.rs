@@ -1,6 +1,6 @@
-use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyboardState, ToUnicode, VK_SHIFT};
-
 use crate::extension::VKeyExt;
+use anyhow::{Context, Result};
+use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyboardState, ToUnicode, VK_SHIFT};
 
 #[derive(Debug)]
 pub enum UserAction {
@@ -31,9 +31,10 @@ enum Function {
     Eight,
 }
 
-impl From<usize> for UserAction {
-    fn from(key_code: usize) -> UserAction {
-        match key_code {
+impl TryFrom<usize> for UserAction {
+    type Error = anyhow::Error;
+    fn try_from(key_code: usize) -> Result<UserAction> {
+        let action = match key_code {
             0x08 => UserAction::Backspace, // VK_BACK
             0x0D => UserAction::Enter,     // VK_RETURN
             0x20 => UserAction::Space,     // VK_SPACE
@@ -70,7 +71,7 @@ impl From<usize> for UserAction {
                 let key_state = {
                     let mut key_state = [0u8; 256];
                     unsafe {
-                        GetKeyboardState(&mut key_state).unwrap();
+                        GetKeyboardState(&mut key_state)?;
                     }
                     key_state
                 };
@@ -81,11 +82,13 @@ impl From<usize> for UserAction {
                 };
 
                 if unicode != 0 {
-                    UserAction::Input(char::from_u32(unicode as u32).unwrap())
+                    UserAction::Input(char::from_u32(unicode as u32).context("Invalid char")?)
                 } else {
                     UserAction::Unknown
                 }
             }
-        }
+        };
+
+        Ok(action)
     }
 }

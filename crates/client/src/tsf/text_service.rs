@@ -4,12 +4,11 @@ use std::{
 };
 
 use windows::{
-    core::{Interface, Result, GUID},
-    Win32::{
-        Foundation::E_FAIL,
-        UI::TextServices::{ITfContext, ITfTextInputProcessor, ITfThreadMgr},
-    },
+    core::{Interface, GUID},
+    Win32::UI::TextServices::{ITfContext, ITfTextInputProcessor, ITfThreadMgr},
 };
+
+use anyhow::{Context, Result};
 
 use crate::engine::{composition::Composition, input_mode::InputMode};
 
@@ -28,35 +27,26 @@ pub struct TextService {
 impl TextService {
     pub fn this<I: Interface>(&self) -> Result<I> {
         if let Some(this) = self.this.as_ref() {
-            this.cast()
+            Ok(this.cast()?)
         } else {
-            Err(E_FAIL.into())
+            anyhow::bail!("this is null");
         }
     }
 
     pub fn thread_mgr(&self) -> Result<ITfThreadMgr> {
-        self.thread_mgr.clone().ok_or(E_FAIL.into())
+        self.thread_mgr.clone().context("Thread manager is null")
     }
 
     pub fn context<I: Interface>(&self) -> Result<I> {
-        if let Some(context) = self.context.as_ref() {
-            context.cast()
-        } else {
-            Err(E_FAIL.into())
-        }
+        let context = self.context.as_ref().context("Context is null")?;
+        Ok(context.cast()?)
     }
 
     pub fn borrow_composition(&self) -> Result<Ref<Composition>> {
-        Ok(self.composition.try_borrow().map_err(|e| {
-            log::error!("Failed to borrow composition: {:#}", e);
-            E_FAIL
-        })?)
+        Ok(self.composition.try_borrow()?)
     }
 
     pub fn borrow_mut_composition(&self) -> Result<RefMut<Composition>> {
-        Ok(self.composition.try_borrow_mut().map_err(|e| {
-            log::error!("Failed to write composition: {:#}", e);
-            E_FAIL
-        })?)
+        Ok(self.composition.try_borrow_mut()?)
     }
 }

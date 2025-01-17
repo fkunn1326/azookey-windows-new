@@ -47,19 +47,3 @@ macro_rules! check_err {
         }
     };
 }
-
-#[macro_export]
-macro_rules! handle_result {
-    // macro to handle error
-    ($result:ident) => {
-        match $result {
-            Ok(v) => Ok(v),
-            Err(e) => {
-                log::error!("{:?}", e);
-                Err(windows::core::Error::from(
-                    windows::Win32::Foundation::E_FAIL,
-                ))
-            }
-        }
-    };
-}

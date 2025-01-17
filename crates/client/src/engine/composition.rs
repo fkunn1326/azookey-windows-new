@@ -9,16 +9,15 @@ use super::{
     user_action::Navigation,
 };
 use crate::engine::ipc_service::IPCService;
-use windows::{
-    core::Result,
-    Win32::{
-        Foundation::WPARAM,
-        UI::{
-            Input::KeyboardAndMouse::VK_CONTROL,
-            TextServices::{ITfComposition, ITfCompositionSink_Impl, ITfContext},
-        },
+use windows::Win32::{
+    Foundation::WPARAM,
+    UI::{
+        Input::KeyboardAndMouse::VK_CONTROL,
+        TextServices::{ITfComposition, ITfCompositionSink_Impl, ITfContext},
     },
 };
+
+use anyhow::Result;
 
 #[derive(Default, Clone, PartialEq, Debug)]
 pub enum CompositionState {
@@ -40,13 +39,13 @@ pub struct Composition {
 }
 
 impl ITfCompositionSink_Impl for TextServiceFactory_Impl {
+    #[macros::anyhow]
     fn OnCompositionTerminated(
         &self,
         _ecwrite: u32,
         _pcomposition: Option<&ITfComposition>,
     ) -> Result<()> {
         // if user clicked outside the composition, the composition will be terminated
-        log::debug!("composition terminated");
 
         let actions = vec![ClientAction::EndComposition];
         self.handle_action(&actions, CompositionState::None)?;
@@ -76,7 +75,7 @@ impl TextServiceFactory {
             (composition, mode)
         };
 
-        let action = UserAction::from(wparam.0);
+        let action = UserAction::try_from(wparam.0)?;
 
         let (transition, actions) = match composition.state {
             CompositionState::None => match action {
@@ -182,10 +181,11 @@ impl TextServiceFactory {
                     self.start_composition()?;
                 }
                 ClientAction::EndComposition => {
+                    self.set_text(&suggestion)?;
                     self.end_composition()?;
                     spell.clear();
                     suggestion.clear();
-                    ipc_service.clear_text().unwrap();
+                    ipc_service.clear_text()?;
                 }
                 ClientAction::AppendText(text) => {
                     let text = match mode {
@@ -218,7 +218,7 @@ impl TextServiceFactory {
                     self.set_input_mode(mode.clone())?;
                     spell.clear();
                     suggestion.clear();
-                    ipc_service.clear_text().unwrap();
+                    ipc_service.clear_text()?;
                 }
             }
         }

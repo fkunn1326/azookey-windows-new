@@ -3,15 +3,14 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering::Relaxed},
 };
 use windows::{
-    core::{implement, Result, BSTR, GUID},
-    Win32::{
-        Foundation::E_FAIL,
-        UI::TextServices::{
-            IEnumTfDisplayAttributeInfo, IEnumTfDisplayAttributeInfo_Impl, ITfDisplayAttributeInfo,
-            ITfDisplayAttributeInfo_Impl, ITfDisplayAttributeProvider_Impl, TF_DISPLAYATTRIBUTE,
-        },
+    core::{implement, BSTR, GUID},
+    Win32::UI::TextServices::{
+        IEnumTfDisplayAttributeInfo, IEnumTfDisplayAttributeInfo_Impl, ITfDisplayAttributeInfo,
+        ITfDisplayAttributeInfo_Impl, ITfDisplayAttributeProvider_Impl, TF_DISPLAYATTRIBUTE,
     },
 };
+
+use anyhow::Result;
 
 use crate::globals::{DISPLAY_ATTRIBUTE, GUID_DISPLAY_ATTRIBUTE};
 
@@ -19,11 +18,13 @@ use super::factory::TextServiceFactory_Impl;
 
 // class for display attribute (color, bold, underline, etc.)
 impl ITfDisplayAttributeProvider_Impl for TextServiceFactory_Impl {
+    #[macros::anyhow]
     fn EnumDisplayAttributeInfo(&self) -> windows::core::Result<IEnumTfDisplayAttributeInfo> {
         let enum_info = EnumDisplayAttributeInfo::new();
         Ok(enum_info.into())
     }
 
+    #[macros::anyhow]
     fn GetDisplayAttributeInfo(
         &self,
         guid: *const windows_core::GUID,
@@ -35,7 +36,7 @@ impl ITfDisplayAttributeProvider_Impl for TextServiceFactory_Impl {
                 return Ok(attribute.into());
             }
         }
-        Err(E_FAIL.into())
+        anyhow::bail!("Display attribute not found");
     }
 }
 
@@ -58,6 +59,7 @@ impl DisplayAttributeInfo {
 }
 
 impl ITfDisplayAttributeInfo_Impl for DisplayAttributeInfo_Impl {
+    #[macros::anyhow]
     fn GetAttributeInfo(&self, pda: *mut TF_DISPLAYATTRIBUTE) -> Result<()> {
         unsafe {
             *pda = self.attribute.get();
@@ -65,19 +67,23 @@ impl ITfDisplayAttributeInfo_Impl for DisplayAttributeInfo_Impl {
         Ok(())
     }
 
+    #[macros::anyhow]
     fn GetGUID(&self) -> Result<GUID> {
         Ok(self.guid)
     }
 
+    #[macros::anyhow]
     fn Reset(&self) -> Result<()> {
         self.attribute.set(self.attribute_backup);
         Ok(())
     }
 
+    #[macros::anyhow]
     fn GetDescription(&self) -> Result<BSTR> {
         Ok(BSTR::default())
     }
 
+    #[macros::anyhow]
     fn SetAttributeInfo(&self, pda: *const TF_DISPLAYATTRIBUTE) -> Result<()> {
         unsafe {
             self.attribute.set(*pda);
@@ -108,12 +114,14 @@ impl EnumDisplayAttributeInfo {
 }
 
 impl IEnumTfDisplayAttributeInfo_Impl for EnumDisplayAttributeInfo_Impl {
+    #[macros::anyhow]
     fn Clone(&self) -> Result<IEnumTfDisplayAttributeInfo> {
         let clone = EnumDisplayAttributeInfo::new();
         clone.index.store(self.index.load(Relaxed), Relaxed);
         Ok(clone.into())
     }
 
+    #[macros::anyhow]
     fn Next(
         &self,
         ulcount: u32,
@@ -131,7 +139,7 @@ impl IEnumTfDisplayAttributeInfo_Impl for EnumDisplayAttributeInfo_Impl {
             while fetched < ulcount && index < self.attributes.len() {
                 let attribute = match self.attributes.get(index).cloned() {
                     Some(attr) => attr,
-                    None => return Err(windows::core::Error::from_win32()),
+                    None => anyhow::bail!("Display attribute not found"),
                 };
                 *rginfo = Some(attribute.into());
                 fetched += 1;
@@ -144,12 +152,14 @@ impl IEnumTfDisplayAttributeInfo_Impl for EnumDisplayAttributeInfo_Impl {
         Ok(())
     }
 
+    #[macros::anyhow]
     fn Reset(&self) -> Result<()> {
         self.index.store(0, std::sync::atomic::Ordering::Relaxed);
         Ok(())
     }
 
-    fn Skip(&self, ulcount: u32) -> windows::core::Result<()> {
+    #[macros::anyhow]
+    fn Skip(&self, ulcount: u32) -> Result<()> {
         let index = self.index.load(Relaxed) + ulcount as usize;
         self.index.store(index, Relaxed);
         Ok(())

@@ -1,16 +1,19 @@
 use windows::{
-    core::{Interface as _, Result},
+    core::Interface as _,
     Win32::UI::TextServices::{
         ITfContext, ITfContextView, ITfSource, ITfTextLayoutSink, ITfTextLayoutSink_Impl,
         TfLayoutCode,
     },
 };
 
+use anyhow::Result;
+
 use super::{factory::TextServiceFactory_Impl, text_service::TextService};
 
 impl ITfTextLayoutSink_Impl for TextServiceFactory_Impl {
     // This function is called when the text display position changes when the IME is enabled.
     // However, this function **will not be called** in Microsoft Store applications such as Notepad, so be careful.
+    #[macros::anyhow]
     fn OnLayoutChange(
         &self,
         _pic: Option<&ITfContext>,

@@ -4,9 +4,9 @@ use std::{
 };
 
 use windows::{
-    core::{implement, AsImpl, IUnknown, Interface, Result, GUID},
+    core::{implement, AsImpl, IUnknown, Interface, GUID},
     Win32::{
-        Foundation::{BOOL, E_FAIL, E_NOINTERFACE},
+        Foundation::{BOOL, E_NOINTERFACE},
         System::Com::{IClassFactory, IClassFactory_Impl},
         UI::TextServices::{
             ITfCompositionSink, ITfDisplayAttributeProvider, ITfKeyEventSink, ITfLangBarItem,
@@ -16,7 +16,9 @@ use windows::{
     },
 };
 
-use crate::{globals::DllModule, handle_result};
+use anyhow::Result;
+
+use crate::globals::DllModule;
 
 use super::text_service::TextService;
 
@@ -39,6 +41,7 @@ pub struct TextServiceFactory {
 }
 
 impl IClassFactory_Impl for TextServiceFactory_Impl {
+    #[macros::anyhow]
     fn CreateInstance(
         &self,
         punkouter: Option<&IUnknown>,
@@ -51,7 +54,9 @@ impl IClassFactory_Impl for TextServiceFactory_Impl {
         *ppvobject = std::ptr::null_mut();
 
         if punkouter.is_some() {
-            return Err(E_NOINTERFACE.into());
+            return Err(anyhow::Error::new(windows::core::Error::from_hresult(
+                E_NOINTERFACE,
+            )));
         }
 
         unsafe {
@@ -66,26 +71,27 @@ impl IClassFactory_Impl for TextServiceFactory_Impl {
                         TextServiceFactory::create::<ITfTextInputProcessorEx>()?,
                     )
                 }
-                _ => return Err(E_NOINTERFACE.into()),
+                _ => {
+                    return Err(anyhow::Error::new(windows::core::Error::from_hresult(
+                        E_NOINTERFACE,
+                    )))
+                }
             };
         }
 
         Ok(())
     }
 
+    #[macros::anyhow]
     fn LockServer(&self, flock: BOOL) -> Result<()> {
-        let result: anyhow::Result<()> = (|| {
-            let mut dll_instance = DllModule::get()?;
-            if flock.as_bool() {
-                dll_instance.lock();
-            } else {
-                dll_instance.unlock();
-            }
+        let mut dll_instance = DllModule::get()?;
+        if flock.as_bool() {
+            dll_instance.lock();
+        } else {
+            dll_instance.unlock();
+        }
 
-            Ok(())
-        })();
-
-        handle_result!(result)
+        Ok(())
     }
 }
 
@@ -99,20 +105,14 @@ impl TextServiceFactory {
         let factory = unsafe { this.as_impl() };
         factory.borrow_mut()?.this = Some(this.clone());
 
-        unsafe { factory.cast::<I>() }
+        unsafe { factory.cast::<I>().map_err(|e| anyhow::Error::new(e)) }
     }
 
     pub fn borrow_mut(&self) -> Result<RefMut<TextService>> {
-        Ok(self.text_service.try_borrow_mut().map_err(|e| {
-            log::error!("Failed to borrow_mut {:#}", e);
-            E_FAIL
-        })?)
+        Ok(self.text_service.try_borrow_mut()?)
     }
 
     pub fn borrow(&self) -> Result<Ref<TextService>> {
-        Ok(self.text_service.try_borrow().map_err(|e| {
-            log::error!("Failed to borrow {:#}", e);
-            E_FAIL
-        })?)
+        Ok(self.text_service.try_borrow()?)
     }
 }

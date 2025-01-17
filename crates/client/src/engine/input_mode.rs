@@ -1,9 +1,11 @@
 use crate::tsf::factory::TextServiceFactory;
 
 use windows::{
-    core::{Interface, Result},
+    core::Interface,
     Win32::UI::TextServices::{ITfLangBarItemButton, ITfLangBarItemMgr},
 };
+
+use anyhow::Result;
 
 use super::{client_action::ClientAction, composition::CompositionState};
 
@@ -16,7 +18,6 @@ pub enum InputMode {
 
 impl TextServiceFactory {
     pub fn set_input_mode(&self, mode: InputMode) -> Result<()> {
-        log::debug!("set input mode: {:?}", mode);
         {
             let mut text_service = self.borrow_mut()?;
 
