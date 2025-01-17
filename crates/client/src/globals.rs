@@ -1,5 +1,7 @@
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
+use anyhow::Result;
+
 use windows::{
     core::GUID,
     Win32::{
@@ -67,7 +69,7 @@ impl DllModule {
         }
     }
 
-    pub fn get<'a>() -> anyhow::Result<MutexGuard<'a, DllModule>> {
+    pub fn get() -> Result<MutexGuard<'static, DllModule>> {
         DLL_INSTANCE
             .get()
             .ok_or_else(|| anyhow::anyhow!("DllModule is not initialized"))?

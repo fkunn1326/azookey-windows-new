@@ -16,7 +16,7 @@ use std::{cell::RefCell, mem::ManuallyDrop, rc::Rc};
 
 use anyhow::Result;
 
-use crate::{extension::StringExt as _, globals::GUID_DISPLAY_ATTRIBUTE};
+use crate::{engine::state::IMEState, extension::StringExt as _, globals::GUID_DISPLAY_ATTRIBUTE};
 
 use super::factory::TextServiceFactory;
 
@@ -209,7 +209,7 @@ impl TextServiceFactory {
                 text_service.context()?,
                 Rc::new({
                     let context = text_service.context::<ITfContext>()?;
-                    let ipc_service = composition.ipc_service.clone();
+                    let ipc_service = IMEState::get()?.ipc_service.clone();
 
                     move |cookie| unsafe {
                         let view = context.GetActiveView()?;

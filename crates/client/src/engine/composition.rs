@@ -5,10 +5,9 @@ use crate::{
 };
 
 use super::{
-    client_action::ClientAction, full_width::to_fullwidth, input_mode::InputMode,
+    client_action::ClientAction, full_width::to_fullwidth, input_mode::InputMode, state::IMEState,
     user_action::Navigation,
 };
-use crate::engine::ipc_service::IPCService;
 use windows::Win32::{
     Foundation::WPARAM,
     UI::{
@@ -30,11 +29,9 @@ pub enum CompositionState {
 
 #[derive(Default, Clone, Debug)]
 pub struct Composition {
-    pub spelling: String,
     pub suggestion: String,
     pub suggestions: Vec<String>,
     pub state: CompositionState,
-    pub ipc_service: IPCService,
     pub tip_composition: Option<ITfComposition>,
 }
 
@@ -71,7 +68,7 @@ impl TextServiceFactory {
         let (composition, mode) = {
             let text_service = self.borrow()?;
             let composition = text_service.borrow_composition()?.clone();
-            let mode = text_service.mode.clone();
+            let mode = IMEState::get()?.input_mode.clone();
             (composition, mode)
         };
 
@@ -114,7 +111,7 @@ impl TextServiceFactory {
                     vec![ClientAction::AppendText(number.to_string())],
                 ),
                 UserAction::Backspace => {
-                    if composition.spelling.len() == 1 {
+                    if composition.suggestion.len() == 1 {
                         (
                             CompositionState::None,
                             vec![ClientAction::RemoveText, ClientAction::EndComposition],
@@ -166,13 +163,12 @@ impl TextServiceFactory {
         let (composition, mode) = {
             let text_service = self.borrow()?;
             let composition = text_service.borrow_composition()?.clone();
-            let mode = text_service.mode.clone();
+            let mode = IMEState::get()?.input_mode.clone();
             (composition, mode)
         };
 
-        let mut spell = composition.spelling.clone();
         let mut suggestion = composition.suggestion.clone();
-        let mut ipc_service = composition.ipc_service.clone();
+        let mut ipc_service = IMEState::get()?.ipc_service.clone();
         let mut transition = transition;
 
         for action in actions {
@@ -183,7 +179,6 @@ impl TextServiceFactory {
                 ClientAction::EndComposition => {
                     self.set_text(&suggestion)?;
                     self.end_composition()?;
-                    spell.clear();
                     suggestion.clear();
                     ipc_service.clear_text()?;
                 }
@@ -192,7 +187,6 @@ impl TextServiceFactory {
                         InputMode::Kana => to_fullwidth(text),
                         InputMode::Latin => text.to_string(),
                     };
-                    spell.push_str(&text);
 
                     suggestion = ipc_service
                         .append_text(text.clone())
@@ -200,14 +194,10 @@ impl TextServiceFactory {
                     self.set_text(&suggestion)?;
                 }
                 ClientAction::RemoveText => {
-                    spell.pop();
-                    suggestion = ipc_service.remove_text().expect("remove_text failed");
+                    suggestion = ipc_service.remove_text()?;
                     self.set_text(&suggestion)?;
                     if suggestion.is_empty() {
                         transition = CompositionState::None;
-
-                        let actions = vec![ClientAction::EndComposition];
-                        self.handle_action(&actions, CompositionState::None)?;
                     }
                 }
                 ClientAction::MoveCursor(_offset) => {
@@ -216,7 +206,6 @@ impl TextServiceFactory {
                 }
                 ClientAction::SetIMEMode(mode) => {
                     self.set_input_mode(mode.clone())?;
-                    spell.clear();
                     suggestion.clear();
                     ipc_service.clear_text()?;
                 }
@@ -225,7 +214,6 @@ impl TextServiceFactory {
 
         let text_service = self.borrow()?;
         let mut composition = text_service.borrow_mut_composition()?;
-        composition.spelling = spell.clone();
         composition.suggestion = suggestion.clone();
         composition.state = transition;
 
