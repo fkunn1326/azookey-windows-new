@@ -1,0 +1,5 @@
+module ffi {
+    header "ffi.h"
+
+    export *
+}

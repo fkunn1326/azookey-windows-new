@@ -13,6 +13,12 @@ pub struct IPCService {
     runtime: Arc<tokio::runtime::Runtime>,
 }
 
+#[derive(Debug)]
+pub struct Candidates {
+    pub texts: Vec<String>,
+    pub sub_texts: Vec<String>,
+}
+
 impl Default for IPCService {
     fn default() -> Self {
         let runtime = tokio::runtime::Runtime::new()
@@ -44,7 +50,7 @@ impl Default for IPCService {
 
 // implement methods to interact with kkc server
 impl IPCService {
-    pub fn append_text(&mut self, text: String) -> anyhow::Result<String> {
+    pub fn append_text(&mut self, text: String) -> anyhow::Result<Candidates> {
         let request = tonic::Request::new(protos::proto::AppendTextRequest {
             text_to_append: text,
         });
@@ -55,14 +61,27 @@ impl IPCService {
             .block_on(self.azookey_client.append_text(request))?;
         let composing_text = response.into_inner().composing_text;
 
-        if let Some(composing_text) = composing_text {
-            Ok(composing_text.suggestions[0].clone())
+        let candidates = if let Some(composing_text) = composing_text {
+            Candidates {
+                texts: composing_text
+                    .suggestions
+                    .iter()
+                    .map(|s| s.text.clone())
+                    .collect(),
+                sub_texts: composing_text
+                    .suggestions
+                    .iter()
+                    .map(|s| s.subtext.clone())
+                    .collect(),
+            }
         } else {
-            Err(anyhow::anyhow!("composing_text is None"))
-        }
+            anyhow::bail!("composing_text is None");
+        };
+
+        Ok(candidates)
     }
 
-    pub fn remove_text(&mut self) -> anyhow::Result<String> {
+    pub fn remove_text(&mut self) -> anyhow::Result<Candidates> {
         let request = tonic::Request::new(protos::proto::RemoveTextRequest {});
         let response = self
             .runtime
@@ -70,11 +89,24 @@ impl IPCService {
             .block_on(self.azookey_client.remove_text(request))?;
         let composing_text = response.into_inner().composing_text;
 
-        if let Some(composing_text) = composing_text {
-            Ok(composing_text.spell)
+        let candidates = if let Some(composing_text) = composing_text {
+            Candidates {
+                texts: composing_text
+                    .suggestions
+                    .iter()
+                    .map(|s| s.text.clone())
+                    .collect(),
+                sub_texts: composing_text
+                    .suggestions
+                    .iter()
+                    .map(|s| s.subtext.clone())
+                    .collect(),
+            }
         } else {
-            Err(anyhow::anyhow!("composing_text is None"))
-        }
+            anyhow::bail!("composing_text is None");
+        };
+
+        Ok(candidates)
     }
 
     pub fn clear_text(&mut self) -> anyhow::Result<()> {
@@ -115,6 +147,15 @@ impl IPCService {
         self.runtime
             .clone()
             .block_on(self.window_client.set_window_position(request))?;
+
+        Ok(())
+    }
+
+    pub fn set_candidates(&mut self, candidates: Vec<String>) -> anyhow::Result<()> {
+        let request = tonic::Request::new(protos::proto::SetCandidateRequest { candidates });
+        self.runtime
+            .clone()
+            .block_on(self.window_client.set_candidate(request))?;
 
         Ok(())
     }

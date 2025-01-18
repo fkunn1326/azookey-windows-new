@@ -2,10 +2,15 @@ syntax = "proto3";
 
 package azookey;
 
+message Suggestion {
+  string text = 1;    // The main suggestion text.
+  string subtext = 2; // Additional information or subtext for the suggestion.
+}
+
 // ComposingText represents the text and its associated suggestions.
 message ComposingText {
   string spell = 1; // The main text content.
-  repeated string suggestions = 2; // List of suggestions for the text.
+  repeated Suggestion suggestions = 2; // List of suggestions for the text.
 }
 
 // Request message for AppendText.

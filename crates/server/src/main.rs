@@ -4,7 +4,7 @@ use tonic_reflection::server::Builder as ReflectionBuilder;
 use protos::proto::azookey_service_server::{AzookeyService, AzookeyServiceServer};
 use protos::proto::{
     AppendTextRequest, AppendTextResponse, ClearTextRequest, ClearTextResponse, ComposingText,
-    MoveCursorRequest, MoveCursorResponse, RemoveTextRequest, RemoveTextResponse,
+    MoveCursorRequest, MoveCursorResponse, RemoveTextRequest, RemoveTextResponse, Suggestion,
 };
 
 use std::ffi::{c_char, c_int, CStr, CString};
@@ -14,13 +14,21 @@ struct RawComposingText {
     cursor: i8,
 }
 
+#[derive(Debug, Clone)]
+#[repr(C)]
+struct FFICandidate {
+    text: *mut c_char,
+    subtext: *mut c_char,
+    corresponding_count: c_int,
+}
+
 extern "C" {
     fn Initialize(path: *const c_char);
     fn AppendText(input: *const c_char, cursorPtr: *mut c_int) -> *mut c_char;
     fn RemoveText(cursorPtr: *mut c_int) -> *mut c_char;
     fn MoveCursor(offset: c_int, cursorPtr: *mut c_int) -> *mut c_char;
     fn ClearText();
-    fn GetComposedText() -> *mut *mut c_char;
+    fn GetComposedText(lengthPtr: *mut c_int) -> *mut *mut FFICandidate;
 }
 
 fn initialize(path: &str) {
@@ -84,21 +92,30 @@ fn clear_text() {
     }
 }
 
-fn get_composed_text() -> [String; 5] {
+fn get_composed_text() -> Vec<Suggestion> {
     unsafe {
-        let result = GetComposedText();
-        let mut return_text: [String; 5] = Default::default();
+        let mut length: c_int = 0;
+        let result = GetComposedText(&mut length);
+        let mut suggestions = Vec::with_capacity(length as usize);
 
-        let mut index = 0;
-        while index < 5 {
-            let c_str = CStr::from_ptr(*result.add(index));
-            let rust_string = c_str.to_string_lossy().into_owned();
-            return_text[index] = rust_string;
+        for index in 0..length as usize {
+            let candidate = (**result.add(index)).clone();
+            let text = CStr::from_ptr(candidate.text)
+                .to_string_lossy()
+                .into_owned();
+            let subtext = CStr::from_ptr(candidate.subtext)
+                .to_string_lossy()
+                .into_owned();
 
-            index += 1;
+            let suggestion = Suggestion {
+                text: text,
+                subtext: subtext,
+            };
+
+            suggestions.push(suggestion);
         }
 
-        return_text
+        suggestions
     }
 }
 

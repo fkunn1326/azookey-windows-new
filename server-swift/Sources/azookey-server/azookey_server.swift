@@ -1,5 +1,6 @@
 import KanaKanjiConverterModule
 import Foundation
+import ffi
 
 @MainActor let converter = KanaKanjiConverter()
 @MainActor var composingText = ComposingText()
@@ -46,6 +47,11 @@ struct SComposingText {
     var text: UnsafeMutablePointer<CChar>
     var cursor: Int
 }
+
+// struct FFICandidate {
+//     char *text;
+//     int correspondingCount;
+// };
 
 func constructCandidateString(candidate: Candidate, hiragana: String) -> String {
     var remainingHiragana = hiragana
@@ -111,46 +117,35 @@ func constructCandidateString(candidate: Candidate, hiragana: String) -> String 
     composingText = ComposingText()
 }
 
-func to_list_pointer(_ list: [String]) -> UnsafeMutablePointer<UnsafeMutablePointer<CChar>?> {
-    let cStrings = list.map { strdup($0) }
-    let cStringPointers = UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>.allocate(capacity: cStrings.count + 1)
-    for (index, cString) in cStrings.enumerated() {
-        cStringPointers[index] = cString
+func to_list_pointer(_ list: [FFICandidate]) -> UnsafeMutablePointer<UnsafeMutablePointer<FFICandidate>?> {
+    let pointer = UnsafeMutablePointer<UnsafeMutablePointer<FFICandidate>?>.allocate(capacity: list.count)
+    for (i, item) in list.enumerated() {
+        pointer[i] = UnsafeMutablePointer<FFICandidate>.allocate(capacity: 1)
+        pointer[i]?.pointee = item
     }
-    cStringPointers[cStrings.count] = nil
-    return cStringPointers
+    return pointer
 }
 
 @_silgen_name("GetComposedText")
-@MainActor public func get_composed_text() -> UnsafeMutablePointer<UnsafeMutablePointer<CChar>?> {
+@MainActor public func get_composed_text(lengthPtr: UnsafeMutablePointer<Int>) -> UnsafeMutablePointer<UnsafeMutablePointer<FFICandidate>?> {
     let hiragana = composingText.convertTarget
     let converted = converter.requestCandidates(composingText, options: options)
-    var result: [String] = []
+    var result: [FFICandidate] = []
 
-    guard let candidate = converted.mainResults.first else {
-        return to_list_pointer([hiragana,"","","",""])
-    }
-
-    let candidateCount = candidate.data.reduce(0) { $0 + $1.ruby.count }
-    let hiraganaCount = hiragana.count
-
-    if candidateCount > hiraganaCount {
-        result.append(constructCandidateString(candidate: candidate, hiragana: hiragana))
-    } else {
-        result.append(candidate.text)
-    }
-
-    // 2個目以降の候補を追加
-    for i in 1..<converted.mainResults.count {
+    for i in 0..<converted.mainResults.count {
         let candidate = converted.mainResults[i]
-        result.append(candidate.text)
+
+        let text = strdup(constructCandidateString(candidate: candidate, hiragana: hiragana))
+        let correspondingCount = candidate.correspondingCount
+
+        var afterComposingText = composingText
+        afterComposingText.prefixComplete(correspondingCount: correspondingCount)
+        let subtext = strdup(afterComposingText.convertTarget)
+
+        result.append(FFICandidate(text: text, subtext: subtext, correspondingCount: Int32(correspondingCount)))        
     }
 
-    if result.count < 5 {
-        for _ in 0..<(5 - result.count) {
-            result.append("")
-        }
-    }
+    lengthPtr.pointee = result.count
 
     return to_list_pointer(result)
 }

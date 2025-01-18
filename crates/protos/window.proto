@@ -13,6 +13,10 @@ message SetPositionRequest {
   WindowPosition position = 1; // 設定するウィンドウの位置
 }
 
+message SetCandidateRequest {
+  repeated string candidates = 1;
+}
+
 // 候補ウィンドウ制御に対する空のレスポンス
 message EmptyResponse {}
 
@@ -20,5 +24,6 @@ message EmptyResponse {}
 service WindowService {
   rpc ShowWindow (EmptyResponse) returns (EmptyResponse); // ウィンドウを表示
   rpc HideWindow (EmptyResponse) returns (EmptyResponse); // ウィンドウを非表示
+  rpc SetCandidate (SetCandidateRequest) returns (EmptyResponse); // 候補の設定
   rpc SetWindowPosition (SetPositionRequest) returns (EmptyResponse); // ウィンドウの位置を設定
 }

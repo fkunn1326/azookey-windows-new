@@ -111,7 +111,7 @@ impl TextServiceFactory {
         Ok(())
     }
 
-    pub fn set_text(&self, text: &str) -> Result<()> {
+    pub fn set_text(&self, text: &str, subtext: &str) -> Result<()> {
         let text_service = self.borrow()?;
 
         if let Some(composition) = text_service.borrow_composition()?.tip_composition.clone() {
@@ -120,19 +120,35 @@ impl TextServiceFactory {
                 text_service.context()?,
                 Rc::new({
                     // unpadded is all you need!
-                    let text = text.to_wide_16_unpadded();
+                    let text = format!("{text}{subtext}").as_str().to_wide_16_unpadded();
                     let context = text_service.context::<ITfContext>()?;
                     let display_attribute_atom = text_service.display_attribute_atom.clone();
+
+                    let text_len = text.len() as i32;
+                    let subtext_len = subtext.len() as i32;
+
                     move |cookie| unsafe {
                         let range = composition.GetRange()?;
-
                         range.SetText(cookie, TF_ST_CORRECTION, &text)?;
 
-                        let display_attribute = display_attribute_atom.get(&GUID_DISPLAY_ATTRIBUTE);
-                        if let Some(display_attribute) = display_attribute {
-                            let pvar = VARIANT::from(*display_attribute as i32);
-                            let prop = context.GetProperty(&GUID_PROP_ATTRIBUTE)?;
-                            prop.SetValue(cookie, &range, &pvar)?;
+                        // first, set the display attribute to the "text" part
+                        if text_len + subtext_len > 0 {
+                            let text_range = range.Clone()?;
+                            text_range.Collapse(cookie, TF_ANCHOR_START)?;
+                            let mut shifted: i32 = 0;
+                            text_range.ShiftEnd(
+                                cookie,
+                                text_len - subtext_len,
+                                &mut shifted,
+                                std::ptr::null(),
+                            )?;
+                            let display_attribute =
+                                display_attribute_atom.get(&GUID_DISPLAY_ATTRIBUTE);
+                            if let Some(display_attribute) = display_attribute {
+                                let pvar = VARIANT::from(*display_attribute as i32);
+                                let prop = context.GetProperty(&GUID_PROP_ATTRIBUTE)?;
+                                prop.SetValue(cookie, &text_range, &pvar)?;
+                            }
                         }
 
                         range.Collapse(cookie, TF_ANCHOR_END)?;

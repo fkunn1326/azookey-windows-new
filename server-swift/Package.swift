@@ -12,6 +12,7 @@ let package = Package(
             type: .dynamic,
             targets: ["azookey-server"]
         ),
+        .library(name: "ffi", targets: ["azookey-server"])
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
@@ -21,10 +22,12 @@ let package = Package(
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
+        .target(name: "ffi"),
         .target(
             name: "azookey-server",
             dependencies: [
-                .product(name: "KanaKanjiConverterModule", package: "azookeykanakanjiconverter")
+                .product(name: "KanaKanjiConverterModule", package: "azookeykanakanjiconverter"),
+                "ffi"
             ]
         ),
         .testTarget(

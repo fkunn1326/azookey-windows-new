@@ -1,8 +1,10 @@
+use std::cmp::max;
+
 use anyhow::Context as _;
 use protos::proto::window_service_server::{
     WindowService as WindowServiceProto, WindowServiceServer,
 };
-use protos::proto::{EmptyResponse, SetPositionRequest};
+use protos::proto::{EmptyResponse, SetCandidateRequest, SetPositionRequest};
 use tao::dpi::{PhysicalPosition, PhysicalSize};
 use tao::platform::windows::{
     EventLoopBuilderExtWindows, WindowBuilderExtWindows, WindowExtWindows,
@@ -37,11 +39,12 @@ impl WindowController {
 }
 
 // ウィンドウ操作コマンド
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 enum WindowAction {
     Show,
     Hide,
     SetPosition { x: i32, y: i32 },
+    SetCandidate { candidates: Vec<String> },
 }
 
 #[derive(Debug)]
@@ -89,6 +92,23 @@ impl WindowServiceProto for WindowService {
 
         Ok(Response::new(EmptyResponse {}))
     }
+
+    async fn set_candidate(
+        &self,
+        request: Request<SetCandidateRequest>,
+    ) -> Result<Response<EmptyResponse>, Status> {
+        let candidate = request.into_inner().candidates;
+
+        self.controller
+            .sender
+            .send(WindowAction::SetCandidate {
+                candidates: candidate,
+            })
+            .await
+            .unwrap();
+
+        Ok(Response::new(EmptyResponse {}))
+    }
 }
 
 #[tokio::main]
@@ -125,7 +145,7 @@ async fn main() -> anyhow::Result<()> {
         SetWindowLongW(HWND(hwnd), GWL_STYLE, style as i32);
     };
 
-    let _webview = WebViewBuilder::new()
+    let webview = WebViewBuilder::new()
         .with_transparent(true)
         .with_html(
             r##"
@@ -204,19 +224,21 @@ async fn main() -> anyhow::Result<()> {
                             user-select: none;
                         }
                     </style>
+                    <script>
+                        function updateCandidates(candidates) {
+                            const candidateList = document.getElementById('candidate-list');
+                            candidateList.innerHTML = '';
+                            candidates.forEach((candidate) => {
+                                const li = document.createElement('li');
+                                li.textContent = candidate;
+                                candidateList.appendChild(li);
+                            });
+                        }
+                    </script>
                 </head>
                 <body style="margin: 0;">
                     <main>
-                        <ol>
-                            <li>変換テキスト1</li>
-                            <li>変換テキスト2</li>
-                            <li>変換テキスト3</li>
-                            <li>変換テキスト4</li>
-                            <li>変換テキスト5</li>
-                            <li>変換テキスト6</li>
-                            <li>変換テキスト7</li>
-                            <li>変換テキスト8</li>
-                            <li>変換テキスト9</li>
+                        <ol id="candidate-list">
                         </ol>
                         <footer>
                             <svg width="20" height="14" viewBox="0 0 22 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -251,6 +273,8 @@ async fn main() -> anyhow::Result<()> {
             .expect("gRPC server failed");
     });
 
+    let event_loop_proxy = event_loop.create_proxy();
+
     // handle window actions
     tokio::spawn(async move {
         while let Some(action) = rx.recv().await {
@@ -269,7 +293,23 @@ async fn main() -> anyhow::Result<()> {
                     };
                 }
                 WindowAction::SetPosition { x, y } => {
-                    window.set_outer_position(PhysicalPosition::new(x as f64, y as f64));
+                    window.set_outer_position(PhysicalPosition::new((x - 15) as f64, y as f64));
+                }
+                WindowAction::SetCandidate { candidates } => {
+                    let max_len = candidates
+                        .iter()
+                        .map(|s| s.chars().count())
+                        .max()
+                        .unwrap_or(0) as u32;
+                    window.set_inner_size(PhysicalSize::new(max(225, 120 + max_len * 18), 275));
+
+                    event_loop_proxy
+                        .send_event(
+                            serde_json::to_string(&candidates)
+                                .context("Failed to serialize candidates")
+                                .unwrap(),
+                        )
+                        .unwrap();
                 }
             }
         }
@@ -284,6 +324,11 @@ async fn main() -> anyhow::Result<()> {
                 event: WindowEvent::CloseRequested,
                 ..
             } => *control_flow = ControlFlow::Exit,
+            Event::UserEvent(candidates) => {
+                webview
+                    .evaluate_script(&format!("updateCandidates({})", candidates))
+                    .unwrap();
+            }
             _ => (),
         }
     });

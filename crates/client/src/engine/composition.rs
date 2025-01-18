@@ -31,6 +31,7 @@ pub enum CompositionState {
 pub struct Composition {
     pub suggestion: String,
     pub suggestions: Vec<String>,
+    pub selection_index: usize,
     pub state: CompositionState,
     pub tip_composition: Option<ITfComposition>,
 }
@@ -168,6 +169,7 @@ impl TextServiceFactory {
         };
 
         let mut suggestion = composition.suggestion.clone();
+        let selection_index = composition.selection_index;
         let mut ipc_service = IMEState::get()?.ipc_service.clone();
         let mut transition = transition;
 
@@ -178,7 +180,7 @@ impl TextServiceFactory {
                     ipc_service.show_window()?;
                 }
                 ClientAction::EndComposition => {
-                    self.set_text(&suggestion)?;
+                    self.set_text(&suggestion, "")?;
                     self.end_composition()?;
                     suggestion.clear();
                     ipc_service.hide_window()?;
@@ -190,16 +192,27 @@ impl TextServiceFactory {
                         InputMode::Latin => text.to_string(),
                     };
 
-                    suggestion = ipc_service
-                        .append_text(text.clone())
-                        .expect("append_text failed");
-                    self.set_text(&suggestion)?;
+                    let candidates = ipc_service.append_text(text.clone())?;
+
+                    suggestion = candidates.texts[selection_index].clone();
+                    self.set_text(&suggestion, "")?;
+                    ipc_service.set_candidates(candidates.texts)?;
                 }
                 ClientAction::RemoveText => {
-                    suggestion = ipc_service.remove_text()?;
-                    self.set_text(&suggestion)?;
+                    let candidates = ipc_service.remove_text()?;
+                    let empty = "".to_string();
+                    suggestion = candidates
+                        .texts
+                        .get(selection_index)
+                        .cloned()
+                        .unwrap_or(empty);
+
+                    self.set_text(&suggestion, "")?;
+                    ipc_service.set_candidates(candidates.texts)?;
+
                     if suggestion.is_empty() {
                         transition = CompositionState::None;
+                        ipc_service.hide_window()?;
                     }
                 }
                 ClientAction::MoveCursor(_offset) => {
