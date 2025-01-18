@@ -4,7 +4,8 @@ use tonic_reflection::server::Builder as ReflectionBuilder;
 use protos::proto::azookey_service_server::{AzookeyService, AzookeyServiceServer};
 use protos::proto::{
     AppendTextRequest, AppendTextResponse, ClearTextRequest, ClearTextResponse, ComposingText,
-    MoveCursorRequest, MoveCursorResponse, RemoveTextRequest, RemoveTextResponse, Suggestion,
+    MoveCursorRequest, MoveCursorResponse, RemoveTextRequest, RemoveTextResponse,
+    ShrinkTextRequest, ShrinkTextResponse, Suggestion,
 };
 
 use std::ffi::{c_char, c_int, CStr, CString};
@@ -29,6 +30,7 @@ extern "C" {
     fn MoveCursor(offset: c_int, cursorPtr: *mut c_int) -> *mut c_char;
     fn ClearText();
     fn GetComposedText(lengthPtr: *mut c_int) -> *mut *mut FFICandidate;
+    fn ShrinkText(offset: c_int);
 }
 
 fn initialize(path: &str) {
@@ -106,16 +108,25 @@ fn get_composed_text() -> Vec<Suggestion> {
             let subtext = CStr::from_ptr(candidate.subtext)
                 .to_string_lossy()
                 .into_owned();
+            let corresponding_count = candidate.corresponding_count;
 
             let suggestion = Suggestion {
-                text: text,
-                subtext: subtext,
+                text,
+                subtext,
+                corresponding_count,
             };
 
             suggestions.push(suggestion);
         }
 
         suggestions
+    }
+}
+
+fn shrink_text(offset: i8) {
+    unsafe {
+        let offset = c_int::from(offset);
+        ShrinkText(offset);
     }
 }
 
@@ -174,6 +185,21 @@ impl AzookeyService for MyAzookeyService {
     ) -> Result<Response<ClearTextResponse>, Status> {
         clear_text();
         Ok(Response::new(ClearTextResponse {}))
+    }
+
+    async fn shrink_text(
+        &self,
+        request: Request<ShrinkTextRequest>,
+    ) -> Result<Response<ShrinkTextResponse>, Status> {
+        let offset = request.into_inner().offset as i8;
+        shrink_text(offset);
+
+        Ok(Response::new(ShrinkTextResponse {
+            composing_text: Some(ComposingText {
+                spell: "".to_string(),
+                suggestions: get_composed_text().to_vec(),
+            }),
+        }))
     }
 }
 

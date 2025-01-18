@@ -17,6 +17,7 @@ pub struct IPCService {
 pub struct Candidates {
     pub texts: Vec<String>,
     pub sub_texts: Vec<String>,
+    pub corresponding_count: Vec<i32>,
 }
 
 impl Default for IPCService {
@@ -73,6 +74,11 @@ impl IPCService {
                     .iter()
                     .map(|s| s.subtext.clone())
                     .collect(),
+                corresponding_count: composing_text
+                    .suggestions
+                    .iter()
+                    .map(|s| s.corresponding_count)
+                    .collect(),
             }
         } else {
             anyhow::bail!("composing_text is None");
@@ -101,6 +107,11 @@ impl IPCService {
                     .iter()
                     .map(|s| s.subtext.clone())
                     .collect(),
+                corresponding_count: composing_text
+                    .suggestions
+                    .iter()
+                    .map(|s| s.corresponding_count)
+                    .collect(),
             }
         } else {
             anyhow::bail!("composing_text is None");
@@ -117,6 +128,39 @@ impl IPCService {
             .block_on(self.azookey_client.clear_text(request))?;
 
         Ok(())
+    }
+
+    pub fn shrink_text(&mut self, offset: i32) -> anyhow::Result<Candidates> {
+        let request = tonic::Request::new(protos::proto::ShrinkTextRequest { offset });
+        let response = self
+            .runtime
+            .clone()
+            .block_on(self.azookey_client.shrink_text(request))?;
+        let composing_text = response.into_inner().composing_text;
+
+        let candidates = if let Some(composing_text) = composing_text {
+            Candidates {
+                texts: composing_text
+                    .suggestions
+                    .iter()
+                    .map(|s| s.text.clone())
+                    .collect(),
+                sub_texts: composing_text
+                    .suggestions
+                    .iter()
+                    .map(|s| s.subtext.clone())
+                    .collect(),
+                corresponding_count: composing_text
+                    .suggestions
+                    .iter()
+                    .map(|s| s.corresponding_count)
+                    .collect(),
+            }
+        } else {
+            anyhow::bail!("composing_text is None");
+        };
+
+        Ok(candidates)
     }
 }
 

@@ -35,7 +35,9 @@ pub enum CompositionState {
 
 #[derive(Default, Clone, Debug)]
 pub struct Composition {
-    pub suggestion: String,
+    pub preview: String,          // text to be previewed
+    pub suffix: String,           // text to be appended after preview
+    pub corresponding_count: i32, // corresponding count of the preview
     pub suggestions: Vec<String>,
     pub selection_index: i32,
     pub candidates: Candidates,
@@ -119,7 +121,7 @@ impl TextServiceFactory {
                     vec![ClientAction::AppendText(number.to_string())],
                 ),
                 UserAction::Backspace => {
-                    if composition.suggestion.len() == 1 {
+                    if composition.preview.len() == 1 {
                         (
                             CompositionState::None,
                             vec![ClientAction::RemoveText, ClientAction::EndComposition],
@@ -128,7 +130,13 @@ impl TextServiceFactory {
                         (CompositionState::Composing, vec![ClientAction::RemoveText])
                     }
                 }
-                UserAction::Enter => (CompositionState::None, vec![ClientAction::EndComposition]),
+                UserAction::Enter => {
+                    if composition.suffix.is_empty() {
+                        (CompositionState::None, vec![ClientAction::EndComposition])
+                    } else {
+                        (CompositionState::Composing, vec![ClientAction::ShrinkText])
+                    }
+                }
                 UserAction::Escape => (
                     CompositionState::None,
                     vec![ClientAction::RemoveText, ClientAction::EndComposition],
@@ -186,7 +194,9 @@ impl TextServiceFactory {
             (composition, mode)
         };
 
-        let mut suggestion = composition.suggestion.clone();
+        let mut preview = composition.preview.clone();
+        let mut suffix = composition.suffix.clone();
+        let mut corresponding_count = composition.corresponding_count.clone();
         let mut candidates = composition.candidates.clone();
         let mut selection_index = composition.selection_index;
         let mut ipc_service = IMEState::get()?.ipc_service.clone();
@@ -199,10 +209,12 @@ impl TextServiceFactory {
                     ipc_service.show_window()?;
                 }
                 ClientAction::EndComposition => {
-                    self.set_text(&suggestion, "")?;
+                    self.set_text(&preview, "")?;
                     self.end_composition()?;
                     selection_index = 0;
-                    suggestion.clear();
+                    corresponding_count = 0;
+                    preview.clear();
+                    suffix.clear();
                     ipc_service.hide_window()?;
                     ipc_service.clear_text()?;
                 }
@@ -215,8 +227,10 @@ impl TextServiceFactory {
                     candidates = ipc_service.append_text(text.clone())?;
                     let text = candidates.texts[selection_index as usize].clone();
                     let sub_text = candidates.sub_texts[selection_index as usize].clone();
+                    corresponding_count = candidates.corresponding_count[selection_index as usize];
 
-                    suggestion = format!("{}{}", text, sub_text);
+                    preview = text.clone();
+                    suffix = sub_text.clone();
 
                     self.set_text(&text, &sub_text)?;
                     ipc_service.set_candidates(candidates.texts.clone())?;
@@ -235,14 +249,20 @@ impl TextServiceFactory {
                         .get(selection_index as usize)
                         .cloned()
                         .unwrap_or(empty);
+                    corresponding_count = candidates
+                        .corresponding_count
+                        .get(selection_index as usize)
+                        .cloned()
+                        .unwrap_or(0);
 
-                    suggestion = format!("{}{}", text, sub_text);
+                    preview = text.clone();
+                    suffix = sub_text.clone();
 
                     self.set_text(&text, &sub_text)?;
                     ipc_service.set_candidates(candidates.texts.clone())?;
                     ipc_service.set_selection(selection_index as i32)?;
 
-                    if suggestion.is_empty() {
+                    if preview.is_empty() {
                         transition = CompositionState::None;
                         ipc_service.hide_window()?;
                     }
@@ -253,7 +273,10 @@ impl TextServiceFactory {
                 }
                 ClientAction::SetIMEMode(mode) => {
                     self.set_input_mode(mode.clone())?;
-                    suggestion.clear();
+                    selection_index = 0;
+                    corresponding_count = 0;
+                    preview.clear();
+                    suffix.clear();
                     ipc_service.clear_text()?;
                 }
                 ClientAction::SetSelection(selection) => {
@@ -276,20 +299,52 @@ impl TextServiceFactory {
                     ipc_service.set_selection(selection_index as i32)?;
                     let text = texts[selection_index as usize].clone();
                     let sub_text = sub_texts[selection_index as usize].clone();
+                    corresponding_count = candidates.corresponding_count[selection_index as usize];
 
-                    suggestion = format!("{}{}", text, sub_text);
+                    preview = text.clone();
+                    suffix = sub_text.clone();
 
                     self.set_text(&text, &sub_text)?;
+                }
+                ClientAction::ShrinkText => {
+                    // first, end composition
+                    self.set_text(&preview, "")?;
+                    self.end_composition()?;
+                    selection_index = 0;
+
+                    preview = suffix.clone();
+                    suffix.clear();
+
+                    // then, start composition
+                    self.start_composition()?;
+                    self.set_text(&preview, "")?;
+
+                    // shrink text
+                    candidates = ipc_service.shrink_text(corresponding_count.clone())?;
+
+                    let text = candidates.texts[selection_index as usize].clone();
+                    let sub_text = candidates.sub_texts[selection_index as usize].clone();
+
+                    corresponding_count = candidates.corresponding_count[selection_index as usize];
+                    preview = text.clone();
+                    suffix = sub_text.clone();
+
+                    self.set_text(&text, &sub_text)?;
+                    ipc_service.set_candidates(candidates.texts.clone())?;
+
+                    transition = CompositionState::Composing;
                 }
             }
         }
 
         let text_service = self.borrow()?;
         let mut composition = text_service.borrow_mut_composition()?;
-        composition.suggestion = suggestion.clone();
+        composition.preview = preview.clone();
         composition.state = transition;
         composition.selection_index = selection_index;
         composition.candidates = candidates;
+        composition.suffix = suffix.clone();
+        composition.corresponding_count = corresponding_count;
 
         Ok(())
     }

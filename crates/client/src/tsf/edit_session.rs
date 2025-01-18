@@ -4,7 +4,7 @@ use windows::{
         Foundation::{E_FAIL, RECT},
         UI::TextServices::{
             ITfCompositionSink, ITfContext, ITfContextComposition, ITfEditSession,
-            ITfEditSession_Impl, ITfInsertAtSelection, GUID_PROP_ATTRIBUTE, TF_AE_END, TF_AE_NONE,
+            ITfEditSession_Impl, ITfInsertAtSelection, GUID_PROP_ATTRIBUTE, TF_AE_NONE,
             TF_ANCHOR_END, TF_ANCHOR_START, TF_ES_READWRITE, TF_IAS_QUERYONLY, TF_SELECTION,
             TF_SELECTIONSTYLE, TF_ST_CORRECTION,
         },
@@ -120,7 +120,6 @@ impl TextServiceFactory {
                 text_service.context()?,
                 Rc::new({
                     let text_len = text.chars().count() as i32;
-                    let subtext_len = subtext.chars().count() as i32;
 
                     // unpadded is all you need!
                     let text = format!("{text}{subtext}").as_str().to_wide_16_unpadded();

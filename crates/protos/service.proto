@@ -5,6 +5,7 @@ package azookey;
 message Suggestion {
   string text = 1;    // The main suggestion text.
   string subtext = 2; // Additional information or subtext for the suggestion.
+  int32 corresponding_count = 3;
 }
 
 // ComposingText represents the text and its associated suggestions.
@@ -36,6 +37,15 @@ message MoveCursorRequest {
   int32 offset = 1; // The new cursor position.
 }
 
+// Request message for ShrinkText.
+message ShrinkTextRequest {
+  int32 offset = 1;
+}
+
+message ShrinkTextResponse {
+    ComposingText composing_text = 1; // The resulting text and suggestions.
+}
+
 // Response message for MoveCursor.
 message MoveCursorResponse {
   ComposingText composing_text = 1; // The resulting text and suggestions.
@@ -51,6 +61,7 @@ message ClearTextResponse {}
 service AzookeyService {
   rpc AppendText (AppendTextRequest) returns (AppendTextResponse);
   rpc RemoveText (RemoveTextRequest) returns (RemoveTextResponse);
+  rpc ShrinkText (ShrinkTextRequest) returns (ShrinkTextResponse);
   rpc MoveCursor (MoveCursorRequest) returns (MoveCursorResponse);
   rpc ClearText (ClearTextRequest) returns (ClearTextResponse);
 }

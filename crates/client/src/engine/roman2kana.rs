@@ -4,6 +4,7 @@ use std::sync::LazyLock;
 
 use super::full_width::to_halfwidth;
 
+#[allow(dead_code)]
 static ROMAN_KANA: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
     HashMap::from([
         ("a", "あ"),
@@ -277,6 +278,7 @@ static ROMAN_KANA: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new
     ])
 });
 
+#[allow(dead_code)]
 pub fn to_hiragana(current_text: &str, added: &str) -> String {
     let mut result = current_text.to_string();
     let chars: Vec<char> = result.chars().collect();

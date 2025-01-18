@@ -12,6 +12,8 @@ pub enum ClientAction {
     SetSelection(SetSelectionType),
 
     SetIMEMode(InputMode),
+
+    ShrinkText,
 }
 
 #[derive(Debug, PartialEq)]

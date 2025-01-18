@@ -149,3 +149,10 @@ func to_list_pointer(_ list: [FFICandidate]) -> UnsafeMutablePointer<UnsafeMutab
 
     return to_list_pointer(result)
 }
+
+@_silgen_name("ShrinkText")
+@MainActor public func shrink_text(offset: Int32) {
+    var afterComposingText = composingText
+    afterComposingText.prefixComplete(correspondingCount: Int(offset))
+    composingText = afterComposingText
+}
