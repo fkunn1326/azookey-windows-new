@@ -13,7 +13,7 @@ pub struct IPCService {
     runtime: Arc<tokio::runtime::Runtime>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct Candidates {
     pub texts: Vec<String>,
     pub sub_texts: Vec<String>,
@@ -156,6 +156,15 @@ impl IPCService {
         self.runtime
             .clone()
             .block_on(self.window_client.set_candidate(request))?;
+
+        Ok(())
+    }
+
+    pub fn set_selection(&mut self, index: i32) -> anyhow::Result<()> {
+        let request = tonic::Request::new(protos::proto::SetSelectionRequest { index });
+        self.runtime
+            .clone()
+            .block_on(self.window_client.set_selection(request))?;
 
         Ok(())
     }

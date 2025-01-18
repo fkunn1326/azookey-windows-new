@@ -4,7 +4,7 @@ use windows::{
         Foundation::{E_FAIL, RECT},
         UI::TextServices::{
             ITfCompositionSink, ITfContext, ITfContextComposition, ITfEditSession,
-            ITfEditSession_Impl, ITfInsertAtSelection, GUID_PROP_ATTRIBUTE, TF_AE_NONE,
+            ITfEditSession_Impl, ITfInsertAtSelection, GUID_PROP_ATTRIBUTE, TF_AE_END, TF_AE_NONE,
             TF_ANCHOR_END, TF_ANCHOR_START, TF_ES_READWRITE, TF_IAS_QUERYONLY, TF_SELECTION,
             TF_SELECTIONSTYLE, TF_ST_CORRECTION,
         },
@@ -119,36 +119,28 @@ impl TextServiceFactory {
                 text_service.tid,
                 text_service.context()?,
                 Rc::new({
+                    let text_len = text.chars().count() as i32;
+                    let subtext_len = subtext.chars().count() as i32;
+
                     // unpadded is all you need!
                     let text = format!("{text}{subtext}").as_str().to_wide_16_unpadded();
                     let context = text_service.context::<ITfContext>()?;
                     let display_attribute_atom = text_service.display_attribute_atom.clone();
-
-                    let text_len = text.len() as i32;
-                    let subtext_len = subtext.len() as i32;
 
                     move |cookie| unsafe {
                         let range = composition.GetRange()?;
                         range.SetText(cookie, TF_ST_CORRECTION, &text)?;
 
                         // first, set the display attribute to the "text" part
-                        if text_len + subtext_len > 0 {
-                            let text_range = range.Clone()?;
-                            text_range.Collapse(cookie, TF_ANCHOR_START)?;
-                            let mut shifted: i32 = 0;
-                            text_range.ShiftEnd(
-                                cookie,
-                                text_len - subtext_len,
-                                &mut shifted,
-                                std::ptr::null(),
-                            )?;
-                            let display_attribute =
-                                display_attribute_atom.get(&GUID_DISPLAY_ATTRIBUTE);
-                            if let Some(display_attribute) = display_attribute {
-                                let pvar = VARIANT::from(*display_attribute as i32);
-                                let prop = context.GetProperty(&GUID_PROP_ATTRIBUTE)?;
-                                prop.SetValue(cookie, &text_range, &pvar)?;
-                            }
+                        let text_range = range.Clone()?;
+                        text_range.Collapse(cookie, TF_ANCHOR_START)?;
+                        let mut shifted: i32 = 0;
+                        text_range.ShiftEnd(cookie, text_len, &mut shifted, std::ptr::null())?;
+                        let display_attribute = display_attribute_atom.get(&GUID_DISPLAY_ATTRIBUTE);
+                        if let Some(display_attribute) = display_attribute {
+                            let pvar = VARIANT::from(*display_attribute as i32);
+                            let prop = context.GetProperty(&GUID_PROP_ATTRIBUTE)?;
+                            prop.SetValue(cookie, &text_range, &pvar)?;
                         }
 
                         range.Collapse(cookie, TF_ANCHOR_END)?;

@@ -1,3 +1,5 @@
+use std::cmp::{max, min};
+
 use crate::{
     engine::user_action::UserAction,
     extension::VKeyExt as _,
@@ -5,7 +7,11 @@ use crate::{
 };
 
 use super::{
-    client_action::ClientAction, full_width::to_fullwidth, input_mode::InputMode, state::IMEState,
+    client_action::{ClientAction, SetSelectionType},
+    full_width::to_fullwidth,
+    input_mode::InputMode,
+    ipc_service::Candidates,
+    state::IMEState,
     user_action::Navigation,
 };
 use windows::Win32::{
@@ -31,7 +37,8 @@ pub enum CompositionState {
 pub struct Composition {
     pub suggestion: String,
     pub suggestions: Vec<String>,
-    pub selection_index: usize,
+    pub selection_index: i32,
+    pub candidates: Candidates,
     pub state: CompositionState,
     pub tip_composition: Option<ITfComposition>,
 }
@@ -135,11 +142,22 @@ impl TextServiceFactory {
                         CompositionState::Composing,
                         vec![ClientAction::MoveCursor(-1)],
                     ),
-                    _ => (CompositionState::Composing, vec![]),
+                    Navigation::Up => (
+                        CompositionState::Composing,
+                        vec![ClientAction::SetSelection(SetSelectionType::Up)],
+                    ),
+                    Navigation::Down => (
+                        CompositionState::Composing,
+                        vec![ClientAction::SetSelection(SetSelectionType::Down)],
+                    ),
                 },
                 UserAction::ToggleInputMode => (
                     CompositionState::None,
                     vec![ClientAction::SetIMEMode(InputMode::Latin)],
+                ),
+                UserAction::Space | UserAction::Tab => (
+                    CompositionState::Composing,
+                    vec![ClientAction::SetSelection(SetSelectionType::Down)],
                 ),
                 _ => {
                     return Ok(false);
@@ -169,7 +187,8 @@ impl TextServiceFactory {
         };
 
         let mut suggestion = composition.suggestion.clone();
-        let selection_index = composition.selection_index;
+        let mut candidates = composition.candidates.clone();
+        let mut selection_index = composition.selection_index;
         let mut ipc_service = IMEState::get()?.ipc_service.clone();
         let mut transition = transition;
 
@@ -182,6 +201,7 @@ impl TextServiceFactory {
                 ClientAction::EndComposition => {
                     self.set_text(&suggestion, "")?;
                     self.end_composition()?;
+                    selection_index = 0;
                     suggestion.clear();
                     ipc_service.hide_window()?;
                     ipc_service.clear_text()?;
@@ -192,23 +212,35 @@ impl TextServiceFactory {
                         InputMode::Latin => text.to_string(),
                     };
 
-                    let candidates = ipc_service.append_text(text.clone())?;
+                    candidates = ipc_service.append_text(text.clone())?;
+                    let text = candidates.texts[selection_index as usize].clone();
+                    let sub_text = candidates.sub_texts[selection_index as usize].clone();
 
-                    suggestion = candidates.texts[selection_index].clone();
-                    self.set_text(&suggestion, "")?;
-                    ipc_service.set_candidates(candidates.texts)?;
+                    suggestion = format!("{}{}", text, sub_text);
+
+                    self.set_text(&text, &sub_text)?;
+                    ipc_service.set_candidates(candidates.texts.clone())?;
+                    ipc_service.set_selection(selection_index as i32)?;
                 }
                 ClientAction::RemoveText => {
-                    let candidates = ipc_service.remove_text()?;
+                    candidates = ipc_service.remove_text()?;
                     let empty = "".to_string();
-                    suggestion = candidates
+                    let text = candidates
                         .texts
-                        .get(selection_index)
+                        .get(selection_index as usize)
+                        .cloned()
+                        .unwrap_or(empty.clone());
+                    let sub_text = candidates
+                        .sub_texts
+                        .get(selection_index as usize)
                         .cloned()
                         .unwrap_or(empty);
 
-                    self.set_text(&suggestion, "")?;
-                    ipc_service.set_candidates(candidates.texts)?;
+                    suggestion = format!("{}{}", text, sub_text);
+
+                    self.set_text(&text, &sub_text)?;
+                    ipc_service.set_candidates(candidates.texts.clone())?;
+                    ipc_service.set_selection(selection_index as i32)?;
 
                     if suggestion.is_empty() {
                         transition = CompositionState::None;
@@ -224,6 +256,31 @@ impl TextServiceFactory {
                     suggestion.clear();
                     ipc_service.clear_text()?;
                 }
+                ClientAction::SetSelection(selection) => {
+                    let candidates = {
+                        let text_service = self.borrow()?;
+                        let composition = text_service.borrow_composition()?.clone();
+                        let candidates = composition.candidates.clone();
+                        candidates
+                    };
+
+                    let texts = candidates.texts.clone();
+                    let sub_texts = candidates.sub_texts.clone();
+
+                    selection_index = match selection {
+                        SetSelectionType::Up => max(0, selection_index - 1),
+                        SetSelectionType::Down => min(texts.len() as i32 - 1, selection_index + 1),
+                        SetSelectionType::Number(number) => *number,
+                    };
+
+                    ipc_service.set_selection(selection_index as i32)?;
+                    let text = texts[selection_index as usize].clone();
+                    let sub_text = sub_texts[selection_index as usize].clone();
+
+                    suggestion = format!("{}{}", text, sub_text);
+
+                    self.set_text(&text, &sub_text)?;
+                }
             }
         }
 
@@ -231,6 +288,8 @@ impl TextServiceFactory {
         let mut composition = text_service.borrow_mut_composition()?;
         composition.suggestion = suggestion.clone();
         composition.state = transition;
+        composition.selection_index = selection_index;
+        composition.candidates = candidates;
 
         Ok(())
     }

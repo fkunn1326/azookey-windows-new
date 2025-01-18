@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use protos::proto::window_service_server::{
     WindowService as WindowServiceProto, WindowServiceServer,
 };
-use protos::proto::{EmptyResponse, SetCandidateRequest, SetPositionRequest};
+use protos::proto::{EmptyResponse, SetCandidateRequest, SetPositionRequest, SetSelectionRequest};
 use tao::dpi::{PhysicalPosition, PhysicalSize};
 use tao::platform::windows::{
     EventLoopBuilderExtWindows, WindowBuilderExtWindows, WindowExtWindows,
@@ -44,6 +44,7 @@ enum WindowAction {
     Show,
     Hide,
     SetPosition { x: i32, y: i32 },
+    SetSelection { index: i32 },
     SetCandidate { candidates: Vec<String> },
 }
 
@@ -104,6 +105,20 @@ impl WindowServiceProto for WindowService {
             .send(WindowAction::SetCandidate {
                 candidates: candidate,
             })
+            .await
+            .unwrap();
+
+        Ok(Response::new(EmptyResponse {}))
+    }
+
+    async fn set_selection(
+        &self,
+        request: Request<SetSelectionRequest>,
+    ) -> Result<Response<EmptyResponse>, Status> {
+        let index = request.into_inner().index;
+        self.controller
+            .sender
+            .send(WindowAction::SetSelection { index })
             .await
             .unwrap();
 
@@ -206,7 +221,7 @@ async fn main() -> anyhow::Result<()> {
                                 margin: 0 0.75rem 0 2;
                             }
 
-                            &:hover {
+                            &[data-selected] {
                                 background-color: #D4F0FF;
                                 border-radius: 3px;
                                 margin-right: 5px;
@@ -233,6 +248,16 @@ async fn main() -> anyhow::Result<()> {
                                 li.textContent = candidate;
                                 candidateList.appendChild(li);
                             });
+                        }
+
+                        function updateSelection(index) {
+                            const candidateList = document.getElementById('candidate-list');
+                            const selected = candidateList.querySelector('[data-selected]');
+                            if (selected) {
+                                selected.removeAttribute('data-selected');
+                            }
+                            candidateList.children[index].setAttribute('data-selected', '');
+                            candidateList.children[index].scrollIntoView({ behavior: "instant", block: "start", inline: "start" });
                         }
                     </script>
                 </head>
@@ -303,12 +328,17 @@ async fn main() -> anyhow::Result<()> {
                         .unwrap_or(0) as u32;
                     window.set_inner_size(PhysicalSize::new(max(225, 120 + max_len * 18), 275));
 
+                    let candidates = serde_json::to_string(&candidates)
+                        .context("Failed to serialize candidates")
+                        .unwrap();
+
                     event_loop_proxy
-                        .send_event(
-                            serde_json::to_string(&candidates)
-                                .context("Failed to serialize candidates")
-                                .unwrap(),
-                        )
+                        .send_event(format!("updateCandidates({})", candidates))
+                        .unwrap();
+                }
+                WindowAction::SetSelection { index } => {
+                    event_loop_proxy
+                        .send_event(format!("updateSelection({})", index))
                         .unwrap();
                 }
             }
@@ -324,10 +354,8 @@ async fn main() -> anyhow::Result<()> {
                 event: WindowEvent::CloseRequested,
                 ..
             } => *control_flow = ControlFlow::Exit,
-            Event::UserEvent(candidates) => {
-                webview
-                    .evaluate_script(&format!("updateCandidates({})", candidates))
-                    .unwrap();
+            Event::UserEvent(script) => {
+                webview.evaluate_script(&script).unwrap();
             }
             _ => (),
         }

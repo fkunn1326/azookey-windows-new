@@ -17,20 +17,20 @@ cp .build/release/azookey-server.lib ../
 
 [tasks.build]
 command = "cargo"
-args = ["build", "--release"]
+args = ["build"]
 
 [tasks.post_build]
 description = "Copy necessary files"
 script_runner = "powershell"
 script_extension = "ps1"
 script  = """
-cp server-swift/.build/x86_64-unknown-windows-msvc/release/azookey-server.dll target/release/
-cp server-swift/llama.dll target/release/
+cp server-swift/.build/x86_64-unknown-windows-msvc/release/azookey-server.dll target/debug/
+cp server-swift/llama.dll target/debug/
 
-cp $env:APPDATA/../Local/Programs/Swift/Runtimes/*/usr/bin/* target/release/
+cp $env:APPDATA/../Local/Programs/Swift/Runtimes/*/usr/bin/* target/debug/
 
-cp -Recurse -Force server-swift/azooKey_emoji_dictionary_storage/EmojiDictionary target/release/
-cp -Recurse -Force server-swift/azooKey_dictionary_storage/Dictionary target/release/
+cp -Recurse -Force server-swift/azooKey_emoji_dictionary_storage/EmojiDictionary target/debug/
+cp -Recurse -Force server-swift/azooKey_dictionary_storage/Dictionary target/debug/
 """
 
 [tasks.flow]

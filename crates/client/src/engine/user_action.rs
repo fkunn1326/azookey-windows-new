@@ -8,6 +8,7 @@ pub enum UserAction {
     Backspace,
     Enter,
     Space,
+    Tab,
     Escape,
     Unknown,
     Navigation(Navigation),
@@ -36,6 +37,7 @@ impl TryFrom<usize> for UserAction {
     fn try_from(key_code: usize) -> Result<UserAction> {
         let action = match key_code {
             0x08 => UserAction::Backspace, // VK_BACK
+            0x09 => UserAction::Tab,       // VK_TAB
             0x0D => UserAction::Enter,     // VK_RETURN
             0x20 => UserAction::Space,     // VK_SPACE
             0x1B => UserAction::Escape,    // VK_ESCAPE
