@@ -16,7 +16,6 @@ use crate::engine::{composition::Composition, input_mode::InputMode};
 pub struct TextService {
     pub tid: u32,
     pub thread_mgr: Option<ITfThreadMgr>,
-    pub cookies: HashMap<GUID, u32>,
     pub context: Option<ITfContext>,
     pub composition: RefCell<Composition>,
     pub display_attribute_atom: HashMap<GUID, u32>,

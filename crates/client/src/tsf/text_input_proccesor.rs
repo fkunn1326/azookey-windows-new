@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::globals::GUID_DISPLAY_ATTRIBUTE;
+use crate::{engine::state::IMEState, globals::GUID_DISPLAY_ATTRIBUTE};
 
 use super::factory::TextServiceFactory_Impl;
 use windows::{
@@ -46,14 +46,17 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
                 &ITfThreadMgrEventSink::IID,
                 &text_service.this::<ITfThreadMgrEventSink>()?,
             )?;
-            text_service
+            IMEState::get()?
                 .cookies
                 .insert(ITfThreadMgrEventSink::IID, cookie);
         };
 
         // initialize text layout sink
         log::debug!("AdviseTextLayoutSink");
-        text_service.advise_text_layout_sink()?;
+        let doc_mgr = unsafe { thread_mgr.GetFocus() };
+        if let Ok(doc_mgr) = doc_mgr {
+            text_service.advise_text_layout_sink(doc_mgr)?;
+        }
 
         // initialize display attribute
         log::debug!("Initialize display attribute");
@@ -119,7 +122,7 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
         // remove thread manager event sink
         log::debug!("UnadviseThreadMgrEventSink");
         unsafe {
-            if let Some(cookie) = text_service.cookies.remove(&ITfThreadMgrEventSink::IID) {
+            if let Some(cookie) = IMEState::get()?.cookies.remove(&ITfThreadMgrEventSink::IID) {
                 thread_mgr.cast::<ITfSource>()?.UnadviseSink(cookie)?;
             }
         };

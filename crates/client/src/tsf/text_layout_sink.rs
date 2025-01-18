@@ -1,12 +1,14 @@
 use windows::{
     core::Interface as _,
     Win32::UI::TextServices::{
-        ITfContext, ITfContextView, ITfSource, ITfTextLayoutSink, ITfTextLayoutSink_Impl,
-        TfLayoutCode,
+        ITfContext, ITfContextView, ITfDocumentMgr, ITfSource, ITfTextLayoutSink,
+        ITfTextLayoutSink_Impl, TfLayoutCode,
     },
 };
 
 use anyhow::Result;
+
+use crate::engine::state::IMEState;
 
 use super::{factory::TextServiceFactory_Impl, text_service::TextService};
 
@@ -27,16 +29,23 @@ impl ITfTextLayoutSink_Impl for TextServiceFactory_Impl {
 }
 
 impl TextService {
-    pub fn advise_text_layout_sink(&mut self) -> Result<()> {
+    pub fn advise_text_layout_sink(&mut self, doc_mgr: ITfDocumentMgr) -> Result<()> {
+        if IMEState::get()?.context.is_some() {
+            self.unadvise_text_layout_sink()?;
+        }
+
         unsafe {
-            let doc_mgr = self.thread_mgr()?.GetFocus()?;
-            let context = doc_mgr.GetBase()?;
+            let context = doc_mgr.GetTop()?;
+
+            IMEState::get()?.context = Some(context.clone());
 
             let cookie = context
                 .cast::<ITfSource>()?
                 .AdviseSink(&ITfTextLayoutSink::IID, &self.this::<ITfTextLayoutSink>()?)?;
 
-            self.cookies.insert(ITfTextLayoutSink::IID, cookie);
+            IMEState::get()?
+                .cookies
+                .insert(ITfTextLayoutSink::IID, cookie);
 
             Ok(())
         }
@@ -44,10 +53,12 @@ impl TextService {
 
     pub fn unadvise_text_layout_sink(&mut self) -> Result<()> {
         unsafe {
-            if let Some(cookie) = self.cookies.remove(&ITfTextLayoutSink::IID) {
-                let doc_mgr = self.thread_mgr()?.GetFocus()?;
-                let context = doc_mgr.GetBase()?;
-                context.cast::<ITfSource>()?.UnadviseSink(cookie)?;
+            let mut state = IMEState::get()?;
+
+            if let Some(context) = state.context.take() {
+                if let Some(cookie) = state.cookies.remove(&ITfTextLayoutSink::IID) {
+                    context.cast::<ITfSource>()?.UnadviseSink(cookie)?;
+                }
             }
 
             Ok(())

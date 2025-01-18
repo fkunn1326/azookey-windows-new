@@ -20,11 +20,16 @@ impl ITfThreadMgrEventSink_Impl for TextServiceFactory_Impl {
     #[macros::anyhow]
     fn OnSetFocus(
         &self,
-        _focus: Option<&ITfDocumentMgr>,
+        focus: Option<&ITfDocumentMgr>,
         _prevfocus: Option<&ITfDocumentMgr>,
     ) -> Result<()> {
         // if focus is changed, the composition will be terminated
         self.update_lang_bar()?;
+
+        // if focus is changed, the text layout sink should be updated
+        if let Some(focus) = focus {
+            self.borrow_mut()?.advise_text_layout_sink(focus.clone())?;
+        }
 
         let actions = vec![ClientAction::EndComposition];
         self.handle_action(&actions, CompositionState::None)?;
