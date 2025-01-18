@@ -19,6 +19,10 @@ cp .build/release/azookey-server.lib ../
 command = "cargo"
 args = ["build"]
 
+[tasks.build_x86]
+command = "cargo"
+args = ["build", "-p", "azookey-windows", "--target=i686-pc-windows-msvc"]
+
 [tasks.post_build]
 description = "Copy necessary files"
 script_runner = "powershell"
@@ -39,5 +43,6 @@ dependencies = [
     "format",
     "build_swift",
     "build",
+    "build_x86",
     "post_build"
 ]

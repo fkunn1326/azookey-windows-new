@@ -102,10 +102,18 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
 
             // remove key event sink
             log::debug!("UnadviseKeyEventSink");
+            #[cfg(target_arch = "x86_64")]
             unsafe {
                 thread_mgr
                     .cast::<ITfKeystrokeMgr>()?
                     .UnadviseKeyEventSink(text_service.tid)?;
+            };
+            #[cfg(target_arch = "x86")]
+            // idk why this is needed, but it is
+            unsafe {
+                thread_mgr
+                    .cast::<ITfKeystrokeMgr>()?
+                    .AddItemUnadviseKeyEventSink(text_service.tid)?;
             };
 
             log::debug!("Remove langbar");
