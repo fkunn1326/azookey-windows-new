@@ -185,7 +185,16 @@ impl TextServiceFactory {
                     if composition.suffix.is_empty() {
                         (CompositionState::None, vec![ClientAction::EndComposition])
                     } else {
-                        (CompositionState::Composing, vec![ClientAction::ShrinkText])
+                        #[cfg(target_arch = "x86_64")]
+                        {
+                            (CompositionState::Composing, vec![ClientAction::ShrinkText])
+                        }
+
+                        // on x86 application, we can't set_text on the same time
+                        #[cfg(target_arch = "x86")]
+                        {
+                            (CompositionState::None, vec![ClientAction::EndComposition])
+                        }
                     }
                 }
                 UserAction::Escape => (
@@ -260,7 +269,7 @@ impl TextServiceFactory {
                     ipc_service.show_window()?;
                 }
                 ClientAction::EndComposition => {
-                    self.set_text(&preview, "")?;
+                    self.set_text(&preview, &suffix)?;
                     self.end_composition()?;
                     selection_index = 0;
                     corresponding_count = 0;
@@ -361,14 +370,12 @@ impl TextServiceFactory {
                     // first, end composition
                     self.set_text(&preview, "")?;
                     self.end_composition()?;
-                    selection_index = 0;
 
-                    preview = suffix.clone();
-                    suffix.clear();
+                    selection_index = 0;
+                    ipc_service.set_selection(selection_index as i32)?;
 
                     // then, start composition
                     self.start_composition()?;
-                    self.set_text(&preview, "")?;
 
                     // shrink text
                     candidates = ipc_service.shrink_text(corresponding_count.clone())?;
