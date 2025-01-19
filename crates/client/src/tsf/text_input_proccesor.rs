@@ -80,7 +80,7 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
                 .AddItem(&text_service.this::<ITfLangBarItemButton>()?)?;
         };
 
-        log::debug!("AdviseKeyEventSink success");
+        log::debug!("Activate success");
 
         Ok(())
     }
@@ -145,7 +145,7 @@ impl ITfTextInputProcessor_Impl for TextServiceFactory_Impl {
         text_service.tid = 0;
         text_service.thread_mgr = None;
 
-        log::debug!("UnadviseKeyEventSink success");
+        log::debug!("Deactivate success");
         Ok(())
     }
 }

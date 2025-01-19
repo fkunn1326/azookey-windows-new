@@ -15,13 +15,15 @@ impl ITfKeyEventSink_Impl for TextServiceFactory_Impl {
     #[macros::anyhow]
     fn OnTestKeyDown(
         &self,
-        _pic: Option<&ITfContext>,
-        _wparam: WPARAM,
+        pic: Option<&ITfContext>,
+        wparam: WPARAM,
         _lparam: LPARAM,
     ) -> Result<BOOL> {
         // this function checks if the key event will be handled by "OnKeyUp" function
         // so we need to return TRUE if we want to handle the key event
-        Ok(true.into())
+        let result = self.test_key(pic, wparam)?;
+
+        Ok(result.into())
     }
 
     #[macros::anyhow]

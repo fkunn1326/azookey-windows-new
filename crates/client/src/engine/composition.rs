@@ -62,6 +62,57 @@ impl ITfCompositionSink_Impl for TextServiceFactory_Impl {
 }
 
 impl TextServiceFactory {
+    pub fn test_key(&self, context: Option<&ITfContext>, wparam: WPARAM) -> Result<bool> {
+        if context.is_none() {
+            return Ok(false);
+        };
+
+        // check shortcut keys
+        if VK_CONTROL.is_pressed() {
+            return Ok(false);
+        }
+
+        #[allow(clippy::let_and_return)]
+        let (composition, mode) = {
+            let text_service = self.borrow()?;
+            let composition = text_service.borrow_composition()?.clone();
+            let mode = IMEState::get()?.input_mode.clone();
+            (composition, mode)
+        };
+
+        let action = UserAction::try_from(wparam.0)?;
+
+        match composition.state {
+            CompositionState::None => match action {
+                UserAction::Input(_) if mode == InputMode::Kana => (),
+                UserAction::Number(_) if mode == InputMode::Kana => (),
+                UserAction::ToggleInputMode => (),
+                _ => {
+                    return Ok(false);
+                }
+            },
+            CompositionState::Composing => match action {
+                UserAction::Input(_)
+                | UserAction::Number(_)
+                | UserAction::Backspace
+                | UserAction::Enter
+                | UserAction::Escape
+                | UserAction::Navigation(_)
+                | UserAction::ToggleInputMode
+                | UserAction::Space
+                | UserAction::Tab => (),
+                _ => {
+                    return Ok(false);
+                }
+            },
+            _ => {
+                return Ok(false);
+            }
+        };
+
+        Ok(true)
+    }
+
     pub fn handle_key(&self, context: Option<&ITfContext>, wparam: WPARAM) -> Result<bool> {
         if let Some(context) = context {
             self.borrow_mut()?.context = Some(context.clone());
